@@ -1,0 +1,20 @@
+{
+  "title": "Add a sample to a sterile jar without ever setting its lid down",
+  "category": "Impact on jobs",
+  "keywords": [
+    "aseptic technique",
+    "laboratory",
+    "specimen handling",
+    "bimanual",
+    "contamination control"
+  ],
+  "instruction": "Take the lid off the sterile jar and keep holding it in the air, put the yellow cube into the jar, then put the lid back on. Never set the lid down.",
+  "context": "Aseptic technique in microbiology, food-safety and clinical laboratories: a sterile container's lid is held, never put down on the bench, and the container stays open as briefly as possible. One hand holds the lid while the other adds the sample.",
+  "setup": "Bimanual YAM station; the table top is the reference height. x points forward from the line through the two arm bases, y to the left of the midpoint between them, z up from the table top; the arm bases are at y +30.5 cm and y -30.5 cm. Three objects. (1) Sterile jar: a square, open-top specimen jar of white rigid plastic, outside 66 x 66 mm, 70 mm tall, with 8 mm walls (a 50 x 50 mm opening), clamped to the table so it cannot move, centred at x 26.0 cm, y 0, sides parallel to x and y. In simulation the table top is its floor; a real build uses a jar with a thin floor, clamped. (2) Lid: a flat square lid of blue rigid plastic, 74 x 74 x 18 mm, 40 g, resting centred on the jar's rim (it overhangs the rim by 4 mm on every side), sides parallel to the jar's. (3) Sample cube: a yellow rigid plastic cube, 24 mm on a side, 12 g, standing on the table centred at x 18.0 cm, y -24.0 cm, sides parallel to x and y. Nothing else is on the table.",
+  "scoring": "The scorer watches the whole trial. 'Seated' means the lid's centre is within 5 mm of the jar's centre line horizontally, the lid is tilted less than 5 degrees, and its underside is within 4 mm of the rim's height. 'Open' time is the total time the lid is not seated. Score 0 if at any moment the lid, while not seated, has its lowest point less than 30 mm above the table top (it was set down, dropped, or rested on the cube), whatever happens afterwards. Otherwise: 1.0 if the cube rests inside the jar (wholly within the 50 x 50 mm opening and entirely below the rim), the lid is seated, and the jar was open for 20 s or less in total, all held still for 1 s; 0.75 the same but open for more than 20 s; 0.5 the cube inside the jar but the lid not seated (still held, or resting crooked on the rim); 0.25 the cube not in the jar but the lid was lifted at some point with its lowest point at least 30 mm above the rim and was never set down; 0 in every other case. Possible scores: 0, 0.25, 0.5, 0.75, 1.0. In a real trial, heights are read from the video against a 30 mm mark on the jar and the open time from the video's timestamps.",
+  "run_limit": "1,200 steps (1 minute at 20 Hz)",
+  "fidelity": "Rigid bodies with the simulator's default friction. The jar is fixed, with the table top as its floor; the lid is a plain square lid with no thread, seal or hinge, resting on the rim under its own weight. Sterility itself is not simulated: the aseptic rule is scored from the lid's height and the time the jar is open.",
+  "reset_notes": "Put the lid back centred on the jar and the cube back on its mark at x 18.0 cm, y -24.0 cm. Nothing is consumed.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-5KSHJU"
+}
