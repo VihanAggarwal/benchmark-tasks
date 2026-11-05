@@ -7,8 +7,8 @@ x 0, y +-0.305; the station's table top is at z 0.7475.
 TOP = 0.7475  # station table top
 
 # The bed: a fixed white platform standing in for the bed's deck, between the arms and a little to the right, so
-# that both arms reach it (the left arm reaches no further right than about y -0.18, the right no further left
-# than about y +0.17 at this x).
+# that both arms reach it (straight down, the left arm reaches no further right than about y -0.18 and the right
+# no further left than about y +0.17 at x 0.18; about -0.13 and +0.12 at x 0.28).
 BED_SIZE = (0.200, 0.300, 0.030)  # along x, along y, height
 BED_X, BED_Y = 0.28, -0.03
 DECK_TOP = TOP + BED_SIZE[2]  # the deck's top face
@@ -28,7 +28,8 @@ MARK_Y0, MARK_Y1 = MARK_Y - MARK_SIZE[1] / 2, MARK_Y + MARK_SIZE[1] / 2  # 0.015
 RAIL_PLACE_X, RAIL_PLACE_Y = 0.28, -0.165
 
 # The trolley: a fixed dark grey platform standing in for the trolley's deck, at the left, 40 mm from the bed's
-# left edge (y 0.12 .. 0.16 is the gap), out of the right arm's reach.
+# left edge (y 0.12 .. 0.16 is the gap), out of the right arm's straight-down reach (a grip rolled 20-40 degrees
+# sideways could just pinch the patient there: see the README).
 TROLLEY_SIZE = (0.200, 0.160, 0.030)
 TROLLEY_X, TROLLEY_Y = 0.28, 0.24
 TROLLEY_TOP = TOP + TROLLEY_SIZE[2]  # the same height as the bed's deck
@@ -36,14 +37,15 @@ TROLLEY_X0, TROLLEY_X1 = TROLLEY_X - TROLLEY_SIZE[0] / 2, TROLLEY_X + TROLLEY_SI
 TROLLEY_Y0, TROLLEY_Y1 = TROLLEY_Y - TROLLEY_SIZE[1] / 2, TROLLEY_Y + TROLLEY_SIZE[1] / 2  # 0.16 .. 0.32
 
 # The patient: a loose skin-pink block standing in for the patient's torso, lying centred on the trolley. Only the
-# left arm reaches it there; it is gripped across its 70 mm (the fingers closing along x), 36 of its 40 mm held.
+# left arm reaches it there with a straight-down grip; it is gripped across its 70 mm (the fingers closing along
+# x), 36 of its 40 mm held.
 PATIENT_SIZE = (0.070, 0.060, 0.040)  # along x, along y, height
 PATIENT_MASS = 0.20
 PATIENT_X, PATIENT_Y = TROLLEY_X, TROLLEY_Y
 PATIENT_HALF = tuple(v / 2 for v in PATIENT_SIZE)
 
 # The rail: a loose light grey bar (hollow aluminium) lying on the table at the right, long side along x, out of
-# the left arm's reach; gripped at its centre across its 30 mm (the fingers closing along y).
+# the left arm's straight-down reach; gripped at its centre across its 30 mm (the fingers closing along y).
 RAIL_SIZE = (0.200, 0.030, 0.040)
 RAIL_MASS = 0.10
 RAIL_X, RAIL_Y = 0.28, -0.27
@@ -51,7 +53,9 @@ RAIL_HALF = tuple(v / 2 for v in RAIL_SIZE)
 
 # The grippers (yam_arena): pads 94 mm apart fully open; rigstate reports the opening as 0 (closed) .. 1 (open).
 FULL_GAP = 0.0939
-FINGER_THICK = 0.008  # finger pad thickness, outside the gap
+FINGER_THICK = 0.008  # finger pad thickness, outside the gap (the real finger widens to about 10 mm thick and 40 mm
+#                       wide near its base, up to 7 mm beyond this zone: inside HAND_GAP, so a touching finger is
+#                       never 'let go'; 'a hand on' uses the pads' own size so that a gripper merely near does not count)
 FINGER_HALF_WIDTH = 0.0135  # the pads are about 27 mm wide (across the closing axis) at the TCP's level
 FINGER_LEN = 0.038  # the fingers' zone runs from the tips this far back up the gripper (13 mm past the TCP to 25 mm
 #                     behind it; the flat pad faces are about 22 mm of that)

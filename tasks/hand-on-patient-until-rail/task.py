@@ -1,8 +1,8 @@
 """On the station table: a fixed white bed deck (200 x 300 x 30 mm) between the arms and a little to the right, with
 a thin pale green mark on its left half where the patient goes; a fixed dark grey trolley deck (200 x 160 x 30 mm)
-at the left, 40 mm from the bed, out of the right arm's reach, with a loose skin-pink 'patient' block (70 x 60 x
+at the left, 40 mm from the bed, out of the right arm's straight-down reach, with a loose skin-pink 'patient' block (70 x 60 x
 40 mm, 0.20 kg) lying on it; and a loose light grey rail (a 200 x 30 x 40 mm bar, 0.10 kg) lying on the table at the
-right, out of the left arm's reach. Fall-prevention rule: once the patient is on the bed, a gripper must keep a hand
+right, out of the left arm's straight-down reach. Fall-prevention rule: once the patient is on the bed, a gripper must keep a hand
 on them on every control step until the rail is resting along the bed's right edge; the patient is never dropped
 and never tips. The scorer checks it at every control step, not only at the end.
 
@@ -109,9 +109,9 @@ def success(objects) -> bool:
 
 
 def score(objects) -> float:
-    """0 if on any step the patient was on the bed (centre over the deck, lowest point within 10 mm of its top)
-    with the rail not up and no gripper's hand on them (a gripper under 0.9 open with its fingers within 10 mm of
-    them), or the patient ever descended faster than 0.15 m/s, tilted more than 15 degrees, or slid more than 15 mm
+    """0 if on any step the patient was on the bed (any part of their outline over the deck, lowest point within
+    10 mm of its top) with the rail not up and no gripper's hand on them (a gripper under 0.9 open, its finger zone
+    overlapping them, its finger tips no higher than 10 mm above their top), or the patient ever descended faster than 0.15 m/s, tilted more than 15 degrees, or slid more than 15 mm
     while within 10 mm of the trolley's top or the table (pushed, not lifted); or if the patient or the rail ends
     off the table, or the patient ends on the table off both platforms. Else 1.0 rail up, patient flat
     on the mark within 15 mm, both grippers let go; 0.75 rail up, patient flat on the bed within 30 mm of the mark
