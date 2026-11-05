@@ -108,7 +108,7 @@ def over_tank(p, margin: float = 0.0) -> bool:
 
 
 def in_opening(p) -> bool:
-    """Is the point (x, y) over the tank's 120 x 360 mm opening (inside its walls)?"""
+    """Is the point (x, y) over the tank's 200 x 360 mm opening (inside its walls)?"""
     return bool(abs(p[0] - L.TANK_X) <= L.TANK_IN_HX and abs(p[1] - L.TANK_Y) <= L.TANK_IN_HY)
 
 

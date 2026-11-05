@@ -1,5 +1,5 @@
-"""On the station table: a grey open-top steel tank (120 x 360 mm inside, 80 mm deep, 8 mm walls, fixed) on the
-midline 28 cm in front of the arm bases, long side along y, with a dark 30 mm steel cube (the dropped part) on its
+"""On the station table: a grey open-top steel tank (200 x 360 mm inside, 80 mm deep, 8 mm walls, fixed) on the
+midline 26 cm in front of the arm bases, long side along y, with a dark 30 mm steel cube (the dropped part) on its
 floor 8.5 cm right of the midline; an orange gas-monitor probe wand (a 30 mm cylinder, 150 mm long) standing in a
 black holder collar to the left of the tank; and a blue parts tray to the right of it. Confined-space entry rule:
 before the right (entrant) gripper reaches into the tank, the left (attendant) gripper tests the air with the probe at
@@ -133,9 +133,10 @@ def score(objects) -> float:
 OPEN = -0.04695
 PROBE_GRIP = -(2 * L.PROBE_RADIUS - 0.008) / 2  # 22 mm across the probe's 30 mm
 PART_GRIP = -(L.PART_EDGE - 0.008) / 2  # 22 mm across the part's 30 mm
-# Both arms close the fingers along y (left yaw -pi/2, right +pi/2, the signs that reach the midline). Inside the
-# tank that puts the right gripper's 110 mm open span along the tank's 360 mm length, and its 27 mm pads across the
-# 120 mm width (46 mm to each long wall).
+# Yaw -pi/2 (left) and +pi/2 (right), the signs the reference tasks use to reach the midline; at those yaws the
+# fingers close along x (yaw 0 closes them along y). Inside the tank that puts the right gripper's 110 mm open span
+# along the tank's 200 mm width (45 mm to the front and back walls) and its 27 mm pads along the 360 mm length. The
+# probe is round, so the closing axis does not matter for its grip, and the left gripper never opens over the tank.
 YAW_L = -math.pi / 2
 YAW_R = math.pi / 2
 TIPS = L.TIPS_BELOW_TCP

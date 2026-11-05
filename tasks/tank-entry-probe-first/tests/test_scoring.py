@@ -308,6 +308,19 @@ class Geometry(unittest.TestCase):
         a = snap(left_tcp=held_tcp(pc) + [0, 0, 0.08], left_open=0.2)  # closed, well above it
         self.assertTrue(let_go(a["left"], probe))
 
+    def test_open_fingers_clear_the_walls_inside_the_tank(self):
+        """At yaw +-pi/2 the fingers close along x (yaw 0: along y). Open, the pads span 110 mm across their outer
+        faces along x and 27 mm along y; on the part's mark they must clear every wall by at least 40 mm."""
+        half_span = L.FULL_GAP / 2 + L.FINGER_THICK  # 55 mm along x
+        front = (L.TANK_X + L.TANK_IN_HX) - (L.PART_X + half_span)
+        back = (L.PART_X - half_span) - (L.TANK_X - L.TANK_IN_HX)
+        end = (L.PART_Y - L.FINGER_HALF_WIDTH) - (L.TANK_Y - L.TANK_IN_HY)
+        probe_side = (L.SAMPLE_Y - L.PROBE_RADIUS) - (L.PART_Y + L.FINGER_HALF_WIDTH)
+        for gap in (front, back, end):
+            self.assertGreaterEqual(gap, 0.040 - 1e-9)
+        self.assertGreater(probe_side, 0.15)
+        self.assertGreaterEqual((L.TANK_Y + L.TANK_IN_HY) - (L.SAMPLE_Y + L.PROBE_RADIUS), 0.025 - 1e-9)
+
     def test_part_places(self):
         self.assertTrue(part_in_tank(part_state(C_START)))
         self.assertFalse(part_out(part_state(C_START)))
@@ -617,9 +630,9 @@ class Tiers(unittest.TestCase):
     def test_probe_standing_on_the_table_outside_its_holder_scores_075(self):
         f = to_tray(fetch(tested(Film())))
         f.with_probe_tip(30, 0.122)
-        spot = probe_centre_for_tip(0.15, 0.20, 0.122)
+        spot = probe_centre_for_tip(0.13, 0.25, 0.122)
         f.go(40, p=spot, L=held_tcp(spot))
-        down = probe_centre_for_tip(0.15, 0.20, 0.0)
+        down = probe_centre_for_tip(0.13, 0.25, 0.0)
         f.go(40, p=down, L=held_tcp(down)).go(30, Lo=OPEN).go(20, L=held_tcp(down) + [0, 0, 0.07]).hold(30)
         r, _ = play(f.frames)
         self.assertEqual(r.details["breaches"], [])

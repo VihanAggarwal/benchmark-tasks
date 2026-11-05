@@ -10,17 +10,19 @@ holding it stays well above the rim, and the inside is wide enough for an open g
 
 TOP = 0.7475  # station table top
 
-# The tank: four fixed steel walls round a 120 x 360 mm floor (the table top), long side along y, on the midline.
-# The entrant (right) gripper closes along y inside it: fully open, its two 8 mm pads span 110 mm across their outer
-# faces along y and 27 mm along x, so on the part's mark it has 40 mm to the right-hand wall and 46 mm to each long
-# wall. 80 mm deep: a gripper on the floor (TCP 17 mm up) has 63 mm of itself below the rim.
-TANK_X, TANK_Y = 0.28, 0.0
-TANK_INNER_X, TANK_INNER_Y = 0.120, 0.360
+# The tank: four fixed steel walls round a 200 x 360 mm floor (the table top), long side along y, on the midline.
+# The entrant (right) gripper works in it at yaw +pi/2, which closes the fingers along x (the GPU-measured convention
+# of the reference tasks: yaw 0 closes along y, yaw +-pi/2 along x). Fully open, its two 8 mm pads span 110 mm across
+# their outer faces along x and 27 mm along y, so on the part's mark it has 45 mm to each long wall (front and back)
+# and 81 mm to the right-hand end wall. 80 mm deep: a gripper on the floor (TCP 17 mm up) has 63 mm of itself below
+# the rim. Centred at x 0.26 so the part's mark is 6.7 cm inside the right arm's reach toward the midline at height.
+TANK_X, TANK_Y = 0.26, 0.0
+TANK_INNER_X, TANK_INNER_Y = 0.200, 0.360
 TANK_WALL = 0.008
 TANK_DEPTH = 0.080
 RIM_Z = TOP + TANK_DEPTH
-TANK_IN_HX, TANK_IN_HY = TANK_INNER_X / 2, TANK_INNER_Y / 2  # 0.060, 0.180
-TANK_OUT_HX, TANK_OUT_HY = TANK_IN_HX + TANK_WALL, TANK_IN_HY + TANK_WALL  # 0.068, 0.188
+TANK_IN_HX, TANK_IN_HY = TANK_INNER_X / 2, TANK_INNER_Y / 2  # 0.100, 0.180
+TANK_OUT_HX, TANK_OUT_HY = TANK_IN_HX + TANK_WALL, TANK_IN_HY + TANK_WALL  # 0.108, 0.188
 
 # The dropped part: a loose steel cube on the tank floor, toward its right-hand end (22.5 cm from the probe's
 # sampling point along y, so the two grippers never come within 20 cm of each other in y).

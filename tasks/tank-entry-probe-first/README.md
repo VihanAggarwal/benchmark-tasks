@@ -80,7 +80,7 @@ See `scoring` in `task.json`; the code is `scoring.py`. The probe's tip is the l
 from its centre and orientation, so a tilted probe is measured where its end really is. Heights are measured from
 the tank floor (the table top), and the rim is at 80 mm.
 
-**The test.** There are three bands for the tip, which must be over the tank's 120 x 360 mm opening:
+**The test.** There are three bands for the tip, which must be over the tank's 200 x 360 mm opening:
 
 - top: 55 to 75 mm, which is 5 to 25 mm below the rim;
 - middle: 30 to 50 mm;
@@ -139,6 +139,7 @@ is set from that scale, from the station's gripper, or from what a person checki
 
 | Threshold | Value | Why |
 |---|---|---|
+| Tank width and position | 200 x 360 mm inside, centred 26 cm out | At yaw +pi/2 the open fingers span 110 mm along x, so 200 mm leaves 45 mm to each long wall. The 360 mm length keeps the probe's sampling point 22.5 cm from the part in y, so the two grippers never meet. 26 cm out keeps the part 6.7 cm inside the right arm's midline reach at height. |
 | Tank depth | 80 mm | Deep enough for three separate 20 mm bands with 5 mm gaps between them. Shallow enough that a gripper working on the floor has only 63 mm of itself below the rim. |
 | Bands | 5-25 mm below the rim, 30-50 mm (half depth +-10 mm), 5-25 mm above the floor | The top, middle and bottom thirds of the depth, as Appendix B's "test as you descend" becomes at this scale: just under the opening, where lighter gases such as methane collect; mid-depth; and just above the floor, where heavier ones such as H2S collect. The bottom band stops 5 mm above the floor, so a probe resting on the floor does not count (a real probe is kept out of sludge). Each band is 20 mm tall, so an arm sagging up to 10 mm under the probe still holds the tip inside a band aimed at its centre. |
 | Dwell | 2 s inside a 10 mm box | A real monitor needs a held sampling point: the sample has to travel up the tube and the sensors have to respond, which takes many seconds per level. At this scale and run length that becomes 2 s (40 control steps). The 10 mm box makes it a deliberate stop. A probe swept through a band at more than 5 mm/s never counts. |
@@ -213,13 +214,15 @@ score entry permits, atmospheric testing order or attendant rules.
 
 ## Demo and run limit
 
-The scripted demo takes 41.0 s (820 control steps). Both arms close their fingers along y: the left at yaw -pi/2,
-the right at +pi/2. Every grip is commanded 8 mm narrower than the object (22 mm on the 30 mm probe and on the
+The scripted demo takes 41.0 s (820 control steps). The left arm works at yaw -pi/2 and the right at +pi/2, the
+signs the program's reference tasks use to reach the midline. At those yaws the fingers close along x (yaw 0 closes
+them along y), the convention measured on the GPU in the reference tasks. The probe is round, so the axis does not
+matter for its grip, and the left gripper never opens over the tank. Every grip is commanded 8 mm narrower than the object (22 mm on the 30 mm probe and on the
 30 mm part), and every open or close takes 1.5 s.
 
 1. The left arm comes down over the probe. It lowers the last 2 cm slowly, grips the probe with the pad tips 30 mm
    below its top, and lifts it straight up out of the collar. The probe's lower end is then 42 mm above the rim.
-2. It carries the probe over the tank, to x 28 cm, y +14 cm, and lowers the tip to the centre of each band in turn
+2. It carries the probe over the tank, to x 26 cm, y +14 cm, and lowers the tip to the centre of each band in turn
    (65, 40 and 15 mm), holding 3 s at each. Offline, the bands count at steps 265, 349 and 439. Throughout, the
    left pads stay at least 55 mm above the rim.
 3. The right arm has waited over the part with its pad tips 67 mm above the rim. It starts down 0.5 s after the
@@ -235,9 +238,10 @@ Offline, success has held its 3 s at step 857 (42.9 s). The run limit is 1,200 s
 Geometry checked in `tests/test_demo_plan.py`:
 
 - The TCPs are never closer than 22.5 cm in y.
-- The demo keeps 9.1 cm (left) and 4.7 cm (right) inside the reach limits, including the midline limit at height.
-- Inside the tank, the right gripper's open pads (110 mm across their outer faces, 27 mm wide) have 46 mm to each
-  long wall and 40 mm to the end wall.
+- The demo keeps 11.1 cm (left) and 6.7 cm (right) inside the reach limits, including the midline limit at height.
+- Inside the tank (checked in `tests/test_scoring.py`), the right gripper's open pads span 110 mm across their outer
+  faces along x, the closing axis, and 27 mm along y. That leaves 45 mm to the front and back walls of the 200 mm
+  width and 81 mm to the right-hand end wall.
 
 The arms' controller does not carry a payload's weight. The left arm should sag about 3 mm under the 0.12 kg probe,
 and the right about 6 mm under the 0.21 kg part. The proxy test plays the demo with no sag, with that sag, and with
@@ -246,7 +250,7 @@ and the right about 6 mm under the 0.21 kg part. The proxy test plays the demo w
 ## Layout, seeds and reset
 
 The layout is fixed (`-E object_jitter=0`): there are no seeds. Reset: stand the probe back upright in the centre
-of its holder at x 20.0 cm, y +25.0 cm, and put the part back on its mark on the tank floor at x 28.0 cm,
+of its holder at x 20.0 cm, y +25.0 cm, and put the part back on its mark on the tank floor at x 26.0 cm,
 y -8.5 cm, sides parallel to x and y. The tank, holder and tray are fixed.
 
 ## Runtime per trial
@@ -256,7 +260,7 @@ start of Isaac Sim on a new instance takes several minutes more.
 
 ## Real-world build
 
-- **Tank:** an open-top steel or aluminium box, 120 x 360 mm inside, 80 mm deep, with 8 mm walls (or a printed
+- **Tank:** an open-top steel or aluminium box, 200 x 360 mm inside, 80 mm deep, with 8 mm walls (or a printed
   shell on a thin base), clamped to the bench.
 - **Part:** a 30 mm steel cube (about 0.21 kg).
 - **Probe:** a 30 mm aluminium tube, 150 mm long, with a 50 g plug at its lower end (about 0.12 kg), painted
@@ -273,9 +277,9 @@ walls are 8 mm steel, and nothing is under load.
 ## Assumptions a GPU run must confirm
 
 - **Gripper housing.** A gripper working on the tank floor has 63 mm of itself below the rim. The fingers are
-  known to clear the walls with 40 to 46 mm to spare, but the size of the housing above them was not available
+  known to clear the walls with 45 mm or more to spare, but the size of the housing above them was not available
   offline. Watch the first demo run for contact between the right wrist or housing and the walls. If there is
-  contact, the tank can be made wider along x without changing any rule.
+  contact, the tank can be made wider without changing any rule (along x only within the midline reach).
 - **The probe grip.** A 30 mm cylinder held between two flat pads 30 mm below its top, with 120 mm hanging below,
   is assumed not to slip or swing. In `TASK_TRACE`, `tip_height_mm` during the dwells should stay within a few mm.
 - **The opening reading.** With the fingers stopped on a 30 mm object, rigstate's opening is assumed to read about
@@ -285,7 +289,7 @@ walls are 8 mm steel, and nothing is under load.
 - **Settling.** Each dwell is 3 s, against the 2 s the scorer needs, leaving about 1 s for the arm to settle. If
   `band_done_steps` shows a band counting late, lengthen `DWELL` in `task.py`.
 - **Releases and joints.** The probe is assumed to stand in its collar after being let go 2 mm up, and the part to
-  stay in the tray after a 15 mm drop. The right wrist at yaw +pi/2, at x 28 cm and y -8.5 cm with the TCP 17 mm
+  stay in the tray after a 15 mm drop. The right wrist at yaw +pi/2, at x 26 cm and y -8.5 cm with the TCP 17 mm
   above the table, is assumed to be inside its joint limits. The program's reference tasks use the same yaw at
   the midline.
 
