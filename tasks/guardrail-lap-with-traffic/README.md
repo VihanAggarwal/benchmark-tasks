@@ -208,7 +208,8 @@ and arrows are fixed. Nothing is consumed.
 
 About 1.5 minutes on an L40S once Isaac Sim is running for the scripted demo (34 s of simulated time), and about
 5 minutes for a Dream-1 trial run to the 2,400-step limit; the first start of Isaac Sim on a new instance takes
-several minutes more.
+several minutes more. Measured on one L40S: settle, demo, both one-arm runs, the screenshot and the Dream-1 trial
+together took about 11 minutes (Dream-1 about 5 of them), each run including about 13 s of Isaac Sim start-up.
 
 ## Real-world build
 
