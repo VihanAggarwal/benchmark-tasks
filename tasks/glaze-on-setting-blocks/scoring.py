@@ -1,10 +1,19 @@
-"""The scorer, as plain functions of the glass unit's and the two setting blocks' states. NumPy only; no simulator.
+"""The scorer, as plain functions of the glass unit's and the two setting blocks' states and of the arms (as
+``rigstate.arms()`` gives them). NumPy only; no simulator.
 
 The rule is about the whole trial, not only its end: the glass must never touch the sill. So the scorer keeps a
-little state (whether any corner of the unit has ever come down to the sill inside the channel) and is fed one
+little state (whether any corner of the unit has ever come down to the sill inside the channel, and for each of the
+three loose objects how many control steps in a row it has been let go and its recent poses) and is fed one
 observation per control step by ``task.success()``.
 
-    Tracker.update(unit, block_1, block_2) -> Result(score, success, details)
+    Tracker.update(unit, block_1, block_2, arms) -> Result(score, success, details)
+
+Resting is never judged from the objects alone (a gripper can hold glass still just above the blocks): every rule
+that credits the unit or a block as resting needs it LET GO (both grippers' finger zones at least 30 mm from it on
+each of the last 20 control steps, 1 s) and STILL (each of its last 20 poses within 2 mm and 2 degrees of the
+current one), besides its support within 1 mm. This fails closed: a step on which the arms cannot be read (no
+snapshot, a side missing, a non-finite number) or a distance cannot be computed counts as NOT let go for every
+object, and restarts its count.
 
 Each state is anything with ``pos`` (bounding-box centre), ``quat_xyzw``, ``lin_vel``, ``ang_vel``, ``low`` and
 ``high`` (world-aligned bounding box), as ``yam_arena.task_file.ObjectState`` has. All three are boxes whose sizes
@@ -23,6 +32,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 import layout as L
+import rigstate
 
 _UH = np.array(L.UNIT_SIZE) / 2
 _BH = np.array(L.BLOCK_SIZE) / 2
@@ -193,7 +203,8 @@ def block_top(block) -> np.ndarray:
 
 def block_on_sill(block) -> bool:
     """Lying flat on the sill (or on a mark) inside the channel: its 8 mm axis within 10 degrees of vertical, its
-    lowest corner within 1 mm below to 3 mm above the sill's top, its centre inside the channel's outline."""
+    lowest corner within 1 mm of the sill's or a mark's top (1 mm below to 2 mm above the sill's top), its centre
+    inside the channel's outline. Geometry only: the tracker adds 'let go' and 'still'."""
     low = float(corners(block, _BH)[:, 2].min())
     return bool(
         folded_tilt_deg(block.quat_xyzw) < L.BLOCK_FLAT_DEG
@@ -207,10 +218,11 @@ def mark_offsets(block) -> tuple[float, float]:
     return tuple(float(np.hypot(block.pos[0] - L.FRAME_X, block.pos[1] - my)) for my in L.MARK_YS)
 
 
-def block_set_on(block, tol: float) -> int | None:
+def block_set_on(block, tol: float, settled: bool = True) -> int | None:
     """Which mark (0 right, 1 left) the block is set on: on the sill in the channel, square within 15 degrees,
-    centre within ``tol`` of the mark's centre. None if neither (the marks are 100 mm apart: never both)."""
-    if not block_on_sill(block) or block_yaw_err_deg(block.quat_xyzw) > L.BLOCK_YAW_DEG:
+    centre within ``tol`` of the mark's centre, and ``settled`` (let go and still, from the tracker). None if
+    neither (the marks are 100 mm apart: never both)."""
+    if not settled or not block_on_sill(block) or block_yaw_err_deg(block.quat_xyzw) > L.BLOCK_YAW_DEG:
         return None
     for i, d in enumerate(mark_offsets(block)):
         if d <= tol:
@@ -218,9 +230,9 @@ def block_set_on(block, tol: float) -> int | None:
     return None
 
 
-def both_set(blocks, tol: float) -> bool:
-    """One block set on each mark."""
-    return {block_set_on(b, tol) for b in blocks} == {0, 1}
+def both_set(blocks, tol: float, settled=(True, True)) -> bool:
+    """One block set on each mark (each let go and still)."""
+    return {block_set_on(b, tol, ok) for b, ok in zip(blocks, settled)} == {0, 1}
 
 
 def share_under(unit, block) -> float:
@@ -243,13 +255,36 @@ def gap_to_block(unit, block) -> float:
 
 
 def on_block(unit, block) -> bool:
-    """The unit rests on the block: the block lies flat on the sill in the channel, at least half of its top is
-    under the unit, and the unit's underside is within 2 mm of the block's top there."""
+    """The unit's geometry on the block: the block lies flat on the sill in the channel, at least half of its top is
+    under the unit, and the unit's underside is within 1 mm of the block's top there. Geometry only: the tracker
+    credits it as RESTING only with the unit and the block both let go and still."""
     return bool(
         block_on_sill(block)
         and share_under(unit, block) >= L.ON_BLOCK_SHARE
         and abs(gap_to_block(unit, block)) <= L.ON_BLOCK_GAP
     )
+
+
+def box_distance(s, size):
+    """A distance function (world points -> metres, 0 inside) to the box of state ``s`` (for rigstate.released)."""
+    return rigstate.boxes_distance([(np.asarray(s.pos, dtype=float), np.asarray(size, dtype=float),
+                                     rotation(s.quat_xyzw))])
+
+
+def hand_gap(arms, s, size) -> float | None:
+    """The nearer gripper's finger zone's distance to the box of ``s`` (m; negative: overlapping), None when the
+    arms are unreadable; -inf when the distance cannot be computed."""
+    try:
+        return rigstate.hands_gap(arms, box_distance(s, size))
+    except Exception:  # noqa: BLE001 - a malformed state or arm: as close as it gets (fail closed)
+        return -math.inf
+
+
+def let_go_now(arms, s, size) -> bool:
+    """Both grippers' finger zones at least LET_GO_CLEAR from the box of ``s`` on this step. Unreadable arms, or a
+    distance that cannot be computed: False (fail closed)."""
+    gap = hand_gap(arms, s, size)
+    return bool(gap is not None and math.isfinite(gap) and gap >= L.LET_GO_CLEAR - 1e-9)
 
 
 def _mm(v: float) -> float | None:
@@ -273,6 +308,11 @@ class Tracker:
     def reset(self) -> None:
         self.steps = 0
         self.bad_steps = 0  # observations with NaN, inf or a zero quaternion in them (ignored)
+        self.arms_unreadable = 0  # control steps on which the arms could not be read (nothing let go)
+        self.free = [0, 0, 0]  # control steps in a row each of unit, block_1, block_2 has been let go
+        self.poses: list[list[tuple[np.ndarray, np.ndarray]]] = [[], [], []]  # their last WINDOW_STEPS poses
+        self.still = [False, False, False]
+        self.gaps: list[float | None] = [None, None, None]  # this step's nearer finger zone gap to each (m)
         self.touched = False  # the unit has touched the sill inside the channel
         self.touched_at = None  # the step it first did
         self.min_low = math.inf  # the lowest any corner of the unit has been inside the channel (z)
@@ -303,11 +343,43 @@ class Tracker:
             for (p, _), (p0, v0) in zip(now, self.prev)
         )
 
-    def update(self, unit, block_1, block_2) -> Result:
+    def _hold(self, objs, arms) -> None:
+        """Count, for each loose object, the steps in a row it has been let go, and judge it still from its poses."""
+        if not rigstate.readable(arms):
+            self.arms_unreadable += 1
+        for i, (s, size) in enumerate(zip(objs, (L.UNIT_SIZE, L.BLOCK_SIZE, L.BLOCK_SIZE))):
+            gap = hand_gap(arms, s, size)
+            self.gaps[i] = gap
+            free = gap is not None and math.isfinite(gap) and gap >= L.LET_GO_CLEAR - 1e-9
+            self.free[i] = self.free[i] + 1 if free else 0
+            window = (self.poses[i] + [(np.array(s.pos, dtype=float), rotation(s.quat_xyzw))])[-L.WINDOW_STEPS:]
+            self.poses[i] = window
+            p, r = window[-1]
+            if len(window) < L.WINDOW_STEPS:
+                self.still[i] = False
+                continue
+            ps = np.array([w[0] for w in window])
+            rs = np.array([w[1] for w in window])
+            moved = np.linalg.norm(ps - p, axis=1)
+            cos = (np.einsum("nij,ij->n", rs, r) - 1.0) / 2.0  # trace(R0^T R): the angle between the two poses
+            turned = np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))
+            self.still[i] = bool(np.all(moved <= L.STILL_MOVE) and np.all(turned <= L.STILL_TURN_DEG))
+
+    def _forget_hold(self) -> None:
+        self.free, self.poses, self.still = [0, 0, 0], [[], [], []], [False, False, False]
+        self.gaps = [None, None, None]
+
+    def settled(self) -> list[bool]:
+        """Unit, block_1, block_2: each let go for the last WINDOW_STEPS steps and still over them."""
+        return [self.free[i] >= L.WINDOW_STEPS and self.still[i] for i in range(3)]
+
+    def update(self, unit, block_1, block_2, arms=None) -> Result:
+        """One control step. ``arms`` is ``rigstate.arms()``: None (unreadable) lets go of nothing."""
         self.steps += 1
         blocks = (block_1, block_2)
-        if not valid(unit, *blocks):  # a broken observation: count it, change nothing, score it 0
-            self.bad_steps += 1
+        if not valid(unit, *blocks):  # a broken observation: count it, score it 0, keep the sill record, and
+            self.bad_steps += 1  # restart the let-go and stillness counts (nothing can be judged at rest from it)
+            self._forget_hold()
             self.last = self.result(unit, *blocks)
             return self.last
         now = [(np.array(s.pos, dtype=float), np.array(s.lin_vel, dtype=float)) for s in (unit, *blocks)]
@@ -315,6 +387,7 @@ class Tracker:
             self.reset()  # the simulator put everything back on its starting spots: a new episode
             self.steps = 1
         self.prev = now
+        self._hold((unit, *blocks), arms)
         inside = [p for p in corners(unit, _UH) if _inside_channel(p[:2], L.TOUCH_SLACK)]
         if inside:
             self.min_low = min(self.min_low, min(float(p[2]) for p in inside))
@@ -329,8 +402,12 @@ class Tracker:
             return Result(0.0, False, {"valid_state": False, "bad_steps": self.bad_steps, "touched": self.touched})
         tilt, off = unit_tilt_deg(unit), centre_off(unit)
         stand = standing(unit)
-        on = [on_block(unit, b) for b in blocks]
-        set_tight, set_loose = both_set(blocks, L.BLOCK_TIGHT), both_set(blocks, L.BLOCK_LOOSE)
+        settled = self.settled()  # unit, block_1, block_2: let go and still for the last 1 s
+        # resting on a block: the geometry, with the unit AND that block let go and still (a held or hovering unit,
+        # or one on a held block, rests on nothing)
+        on = [bool(settled[0] and settled[1 + i] and on_block(unit, b)) for i, b in enumerate(blocks)]
+        set_tight = both_set(blocks, L.BLOCK_TIGHT, settled[1:])
+        set_loose = both_set(blocks, L.BLOCK_LOOSE, settled[1:])
         down = tilt > L.DOWN_TILT_DEG
         fell = off_table(unit)
         if self.touched or down or fell:
@@ -345,9 +422,14 @@ class Tracker:
             score = 0.25
         else:
             score = 0.0
-        success = bool(score == 1.0 and is_resting(unit) and all(is_resting(b) for b in blocks))
+        success = bool(score == 1.0)  # the 1.0 conditions already need everything let go and still for 1 s
         details = {
             "valid_state": True,
+            "let_go_steps": list(self.free),
+            "still": list(self.still),
+            "settled": settled,
+            "arms_unreadable": self.arms_unreadable,
+            "hand_gap_mm": [None if g is None else _mm(g) for g in self.gaps],
             "touched": self.touched,
             "touched_at": self.touched_at,
             "in_channel": in_channel(unit),

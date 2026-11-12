@@ -4,8 +4,11 @@ that leave a 40 mm wide channel along y, closed at its ends by two short jambs (
 240 mm long. Two white quarter-point marks (24 x 30 mm) lie on the sill in the channel at y -5 cm and +5 cm. Two
 loose black rubber setting blocks (24 x 30 x 8 mm) lie side by side on a dark grey tray 24 cm right of the
 midline; a loose glass unit (24 mm thick, 200 mm long, 80 mm tall, 0.20 kg) stands on its long edge on the table
-29 cm left of the midline, its faces normal to x. Rule: the glass must stand on both setting blocks and never
-touch the sill.
+29 cm left of the midline, its faces normal to x. Rule: the glass must be left standing on both setting blocks on
+its own (both grippers let go) and must never touch the sill.
+
+The scorer reads the arms (TCP, pad-tip point, gripper opening) through rigstate.py, which wraps the embodiment's
+step and reset; it changes nothing the embodiment does. Unreadable arms never count as let go.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=task.py --scorer task_score -E object_jitter=0 ...
 Demo:    inspect-robots run --embodiment yam_arena --policy yam_scripted -E task=task.py -E object_jitter=0 ...
@@ -23,25 +26,23 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import layout as L  # noqa: E402
+import rigstate  # noqa: E402
 from scoring import Tracker  # noqa: E402
 from yam_arena.demo import Waypoint  # noqa: E402
 from yam_arena.task_file import Box  # noqa: E402
 
+rigstate.install()  # reads both arms before every control step (False offline: the checker feeds it instead)
+
 SCENE = "station"
 SCORE_OVER = "end"
-# Still for 3 s, not the default 1 s. The arm sags about 5.6 mm under the 0.20 kg unit (no payload gravity
-# compensation), so the unit comes to rest on the blocks about 0.7 s before the slow descent ends (t 38.1 s) and
-# success starts counting while the gripper still holds it. Then come a 0.5 s settle and a 1.5 s release: the pads
-# leave the glass about 1.7 s after that first rest and are fully open (12 mm clear of each face) 2.7 s after it.
-# 3 s ends the trial (about step 808) with them fully open and the hand rising. With more sag the unit rests earlier:
-# with 15 mm the fingers are at 40 of their 48 mm when the 3 s are up, and up to about 20 mm the pads have left the
-# glass. With no sag at all (the offline check) the unit settles when the pads let go, and success holds at about
-# step 846, before the scripted policy stops (step 883). tests/test_scoring.py (DemoTiming) checks these numbers.
-SUCCESS_HOLD_S = 3.0
+# The 1.0 conditions already need the unit and both blocks let go (both grippers' finger zones 30 mm or more from
+# each) on every step of the last 1 s and still over it, so a held or hovering unit can never start this hold.
+SUCCESS_HOLD_S = 1.0
 
+# The goal only: the order of work and how to bring the glass in are for the robot to work out.
 INSTRUCTION = (
-    "Put the two black setting blocks on the white marks in the frame, then lower the glass unit straight down "
-    "into the frame so it stands on both blocks and never touches the sill."
+    "Stand the glass unit in the frame on the two black setting blocks, set on the white marks, and let go. "
+    "The glass must never touch the sill."
 )
 
 _sill_z = L.TOP + L.SILL_SIZE[2] / 2
@@ -75,6 +76,12 @@ OBJECTS = [SILL, *STOPS, *JAMBS, *MARKS, TRAY, *BLOCKS, UNIT]
 _TRACKER = Tracker()
 
 
+@rigstate.on_reset
+def _new_episode() -> None:
+    """rigstate saw the embodiment reset: a new trial (the scorer also spots a teleport back to the start)."""
+    _TRACKER.reset()
+
+
 def _trace(row: dict) -> None:
     """With TASK_TRACE=<file>, append one JSON line per control step: what the scorer saw and decided."""
     path = os.environ.get("TASK_TRACE")
@@ -87,21 +94,31 @@ def _trace(row: dict) -> None:
 
 
 def success(objects) -> bool:
-    """Both blocks on their marks, the unit standing on both of them in the channel, centred, never having touched
-    the sill; everything still for 3 s. This runs first every control step, so it also feeds the tracker."""
+    """Both blocks set on their marks, the unit standing on both of them in the channel, centred, never having
+    touched the sill; the unit and both blocks let go (finger zones 30 mm or more from each on every step of the last
+    1 s; unreadable arms are not let go) and still over that 1 s; held 1 s. This runs first every control step, so it
+    also feeds the tracker (with the arms rigstate read for this step)."""
     unit, b1, b2 = objects["glass_unit"], objects["block_1"], objects["block_2"]
-    result = _TRACKER.update(unit, b1, b2)
-    _trace({"step": _TRACKER.steps, "score": result.score, "success": result.success, **result.details,
-            "unit_pos": unit.pos, "unit_quat": unit.quat_xyzw, "unit_vel": unit.lin_vel, "block_1_pos": b1.pos,
-            "block_2_pos": b2.pos})
+    arms = rigstate.arms()
+    result = _TRACKER.update(unit, b1, b2, arms)
+    row = {"episode": rigstate.episode(), "step": _TRACKER.steps, "score": result.score, "success": result.success,
+           **result.details, "unit_pos": unit.pos, "unit_quat": unit.quat_xyzw, "unit_vel": unit.lin_vel,
+           "block_1_pos": b1.pos, "block_2_pos": b2.pos}
+    if rigstate.readable(arms):
+        row.update(left_tcp=arms["left"].tcp, right_tcp=arms["right"].tcp,
+                   openings=[arms["left"].opening, arms["right"].opening])
+    else:
+        row["rigstate_error"] = rigstate.error()
+    _trace(row)
     return result.success
 
 
 def score(objects) -> float:
     """0 if the unit ever touched the sill, or ends lying down or off the table. Else 1.0 both blocks set within
-    8 mm of their marks and the unit standing on both, centred within 8 mm; 0.75 the same with the blocks within
-    20 mm or the unit within 15 mm; 0.5 the unit standing in the channel on at least one block; 0.25 both blocks
-    set; 0 otherwise."""
+    8 mm of their marks and the unit standing resting on both, centred within 8 mm; 0.75 the same with the blocks
+    within 20 mm or the unit within 15 mm; 0.5 the unit standing in the channel resting on at least one block; 0.25
+    both blocks set; 0 otherwise. 'Set' and 'resting' need the object let go (finger zones 30 mm or more from it on
+    every step of the last 1 s; unreadable arms are not let go), still over that 1 s, and its support within 1 mm."""
     return _TRACKER.result(objects["glass_unit"], objects["block_1"], objects["block_2"]).score
 
 
@@ -142,6 +159,11 @@ U_CARRY_Z = L.STOP_TOP + 0.018 + UNIT_TCP_UP
 U_PLACE_Z = L.SET_BLOCK_TOP + 0.002 + UNIT_TCP_UP
 U_ENTRY_Z = U_PLACE_Z + 0.020  # the last 20 mm are lowered slowly
 HOVER_L = L.TOP + 0.14
+# After letting go the hand goes straight up and then back over the unit's (now empty) starting spot, at the height it
+# first came over the unit: its finger zone (rigstate.py, 35 mm round the pads' axis at the 48 mm let-go opening) ends
+# about 12 cm (117 mm offline) from the glass, well past the scorer's 30 mm 'let go'. Straight up alone (pad tips 18 mm over the
+# glass) would not count: the zone reaches below the pad tips.
+RETREAT_L = (L.UNIT_X, L.UNIT_Y, HOVER_L)
 # Where the unit is set down, from the channel's centre (x, y). The sideways sag moves it about (-1.3, +1.3) mm, well
 # inside the channel's 8 mm play each side and the 8 mm centring limit, so no trim. On the GPU, read unit_pos in
 # TASK_TRACE at the end: if the unit hangs off the TCP's line (a pad that leads on closing shoves it), trim here.
@@ -211,7 +233,7 @@ _RIGHT_CLEAR_AT = _span(_right())
 
 def _left() -> list[Waypoint]:
     """Left arm: grip the unit's top edge, lift it, wait for the blocks, bring it beside the frame and across the
-    near stop over the channel, lower it slowly onto the blocks, let go, go up."""
+    near stop over the channel, lower it slowly onto the blocks, let go, go up and back clear of the glass."""
     fx, fy = L.FRAME_X + PLACE_TRIM[0], L.FRAME_Y + PLACE_TRIM[1]
     pick = _left_pick() + [Waypoint(1.0, (*WAIT_L, U_CARRY_Z), UNIT_GRIP, "back a little, out of the way", YAW_L)]
     wait = _RIGHT_CLEAR_AT - _span(pick)
@@ -226,6 +248,7 @@ def _left() -> list[Waypoint]:
         Waypoint(0.5, (fx, fy, U_PLACE_Z), UNIT_GRIP, "settle on the blocks", YAW_L),
         Waypoint(1.5, (fx, fy, U_PLACE_Z), UNIT_LET_GO, "let go", YAW_L),
         Waypoint(1.0, (fx, fy, HOVER_L - 0.01), UNIT_LET_GO, "straight up", YAW_L),
+        Waypoint(2.0, RETREAT_L, UNIT_LET_GO, "back over its starting spot, clear of the glass", YAW_L),
     ]
 
 

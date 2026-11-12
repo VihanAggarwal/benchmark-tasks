@@ -16,9 +16,10 @@ HERE = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
 import layout as L  # noqa: E402
+import rigstate  # noqa: E402
 from scoring import (  # noqa: E402
-    Tracker, block_on_sill, block_set_on, block_yaw_err_deg, gap_to_block, in_channel, on_block, rotation,
-    share_under, standing, touches_sill, unit_tilt_deg,
+    Tracker, block_on_sill, block_set_on, block_yaw_err_deg, gap_to_block, hand_gap, in_channel, let_go_now,
+    on_block, rotation, share_under, standing, touches_sill, unit_tilt_deg,
 )
 
 UH = L.UNIT_SIZE[2]
@@ -61,6 +62,31 @@ def unit_at(x=CX, y=CY, low=L.SET_BLOCK_TOP, quat=(0, 0, 0, 1), **kw):
 
 def block_at(x, y, low=L.MARK_TOP, quat=(0, 0, 0, 1), **kw):
     return _at(L.BLOCK_SIZE, x, y, low, quat, **kw)
+
+
+def arm(tcp, opening=1.0):
+    """A gripper pointing straight down (pad-tip point 13 mm below the TCP), as rigstate reports it."""
+    tcp = np.array(tcp, float)
+    return rigstate.Arm(tcp=tcp, tips=tcp - np.array([0.0, 0.0, 0.013]), opening=float(opening))
+
+
+AWAY = {"left": arm((0.32, 0.305, 1.0)), "right": arm((0.32, -0.305, 1.0))}  # both up at the ready pose, open
+GRIP_OPENING = (L.UNIT_SIZE[0] - 0.008) / rigstate.FULL_GAP  # the demo's 16 mm grip on the unit
+
+
+def holding_unit(u):
+    """The left gripper closed on the unit's top edge (the demo's grip: TCP 16 mm below the top), the right away."""
+    top = float(corners_top(u))
+    return {"left": arm((u.pos[0], u.pos[1], top - 0.016), GRIP_OPENING), "right": AWAY["right"]}
+
+
+def holding_block(b):
+    """The right gripper closed across a block (pad tips 2.5 mm above its bottom), the left away."""
+    return {"left": AWAY["left"], "right": arm((b.pos[0], b.pos[1], b.low[2] + 0.0155), 0.022 / rigstate.FULL_GAP)}
+
+
+def corners_top(s):
+    return s.high[2]
 
 
 U_HOME = unit_at(L.UNIT_X, L.UNIT_Y, L.TOP)
@@ -113,13 +139,17 @@ def move_unit(end, start=U_HOME):
     return path(start, up, lane, over, entry, n=20) + glide(entry, final, 50) + [final]
 
 
-def run(units, b1s, b2s, tracker=None):
-    """Feed matching unit / block states (lists of equal length) to a fresh tracker; return the last result."""
+def run(units, b1s, b2s, tracker=None, arms=AWAY):
+    """Feed matching unit / block states (lists of equal length) to a fresh tracker; return the last result.
+    ``arms``: what rigstate reports each step (a list, one per step), or the same every step (None: unreadable).
+    By default both grippers are up and away (let go of everything)."""
     assert len(units) == len(b1s) == len(b2s)
+    arms_seq = arms if isinstance(arms, list) else [arms] * len(units)
+    assert len(arms_seq) == len(units)
     t = tracker or Tracker(HZ)
     r = None
-    for u, a, b in zip(units, b1s, b2s):
-        r = t.update(u, a, b)
+    for u, a, b, g in zip(units, b1s, b2s, arms_seq):
+        r = t.update(u, a, b, g)
     return r, t
 
 
@@ -184,6 +214,8 @@ class Geometry(unittest.TestCase):
         self.assertTrue(block_on_sill(B1_SET))
         self.assertTrue(block_on_sill(block_at(CX, 0.0, L.SILL_TOP)))  # on the bare sill between the marks
         self.assertTrue(block_on_sill(block_at(CX, L.MARK_YS[0], quat=about("x", 180))))  # other face up
+        self.assertTrue(block_on_sill(block_at(CX, L.MARK_YS[0], L.MARK_TOP + 0.0009)))  # 0.9 mm over its mark
+        self.assertFalse(block_on_sill(block_at(CX, L.MARK_YS[0], L.MARK_TOP + 0.0011)))  # 1.1 mm: above it
         self.assertFalse(block_on_sill(block_at(CX, L.MARK_YS[0], L.SILL_TOP + 0.0035)))  # held above it
         self.assertFalse(block_on_sill(block_at(CX, L.MARK_YS[0], L.SILL_TOP, quat=about("y", 90))))  # on edge
         self.assertFalse(block_on_sill(B1_HOME))  # on the tray
@@ -202,10 +234,10 @@ class Geometry(unittest.TestCase):
     def test_resting_on_a_block(self):
         self.assertTrue(on_block(U_ON, B1_SET) and on_block(U_ON, B2_SET))
         self.assertAlmostEqual(gap_to_block(U_ON, B1_SET), 0.0, places=9)
-        self.assertTrue(on_block(unit_at(low=L.SET_BLOCK_TOP + 0.0019), B1_SET))
-        self.assertFalse(on_block(unit_at(low=L.SET_BLOCK_TOP + 0.0021), B1_SET))  # held above it
-        self.assertTrue(on_block(unit_at(low=L.SET_BLOCK_TOP - 0.0019), B1_SET))  # solver penetration
-        self.assertFalse(on_block(unit_at(low=L.SET_BLOCK_TOP - 0.0021), B1_SET))
+        self.assertTrue(on_block(unit_at(low=L.SET_BLOCK_TOP + 0.0009), B1_SET))
+        self.assertFalse(on_block(unit_at(low=L.SET_BLOCK_TOP + 0.0011), B1_SET))  # 1.1 mm above it: hovering
+        self.assertTrue(on_block(unit_at(low=L.SET_BLOCK_TOP - 0.0009), B1_SET))  # solver penetration
+        self.assertFalse(on_block(unit_at(low=L.SET_BLOCK_TOP - 0.0011), B1_SET))
         self.assertFalse(on_block(U_ON, B1_HOME))
         self.assertAlmostEqual(share_under(U_ON, B1_SET), 1.0, places=6)
         # the unit 8 mm toward the far stop and the block 4 mm toward the near one: 12 of its 24 mm under the unit
@@ -269,19 +301,22 @@ class Tiers(unittest.TestCase):
         self.assertFalse(r.details["blocks_set"])
 
     def test_blocks_at_the_ends_instead_of_the_quarter_points_score_half(self):
-        r, _ = run(*procedure(b1_end=block_at(CX, -0.09), b2_end=block_at(CX, 0.09, L.SILL_TOP)))
+        # both on the bare sill 90 mm from the centre (off the marks), the unit standing on them
+        ends = block_at(CX, -0.09, L.SILL_TOP), block_at(CX, 0.09, L.SILL_TOP)
+        r, _ = run(*procedure(b1_end=ends[0], b2_end=ends[1], unit_end=unit_at(low=L.SILL_TOP + L.BLOCK_SIZE[2])))
         self.assertEqual(r.score, 0.5)
         self.assertEqual(r.details["on_block"], [True, True])
 
     def test_standing_on_one_block_scores_half(self):
-        # the second block left on the tray; the unit held level on the first (a released one would tip: below)
+        # the second block left on the tray; the unit let go level on the first (the scorer's geometry; in physics
+        # a unit let go on one quarter-point block tips onto the sill: Exploits below)
         us, b1, b2 = procedure()
         r, _ = run(us, b1, hold(B2_HOME, len(us)))
         self.assertEqual(r.details["on_block"], [True, False])
         self.assertEqual(r.score, 0.5)
 
-    def test_on_one_block_and_held_tilted_above_the_other_scores_half(self):
-        # both blocks set, the unit held 2.5 degrees off level: down on the right-hand block, 4.4 mm over the other
+    def test_on_one_block_and_tilted_above_the_other_scores_half(self):
+        # both blocks set, the unit let go 2.5 degrees off level: down on the right-hand block, 4.4 mm over the other
         q = about("x", 2.5)
         u0 = state((CX, CY, L.SET_BLOCK_TOP + UH / 2), L.UNIT_SIZE, q)
         tilted = state(u0.pos - np.array([0, 0, gap_to_block(u0, B1_SET)]), L.UNIT_SIZE, q)
@@ -305,7 +340,7 @@ class Tiers(unittest.TestCase):
 
     def test_blocks_set_unit_held_above_scores_quarter(self):
         us, b1, b2 = procedure(unit_end=unit_at(low=L.SET_BLOCK_TOP + 0.005))
-        r, _ = run(us, b1, b2)
+        r, _ = run(us, b1, b2, arms=hold(AWAY, len(us) - 70) + hold(holding_unit(us[-1]), 70))
         self.assertEqual(r.score, 0.25)
 
     def test_blocks_set_unit_leaning_scores_quarter(self):
@@ -358,16 +393,30 @@ class Tiers(unittest.TestCase):
         self.assertTrue(r.details["off_table"])
         self.assertEqual(r.score, 0.0)
 
-    def test_success_needs_stillness(self):
+    def test_resting_needs_stillness_over_the_last_second(self):
+        # judged from the poses (a path window), not from the reported velocity
         us, b1, b2 = procedure(settle=0)
-        moving = state(U_ON.pos, U_ON.size, vel=(0, 0, -0.012))
-        r, _ = run(us + hold(moving, 70), b1 + hold(B1_SET, 70), b2 + hold(B2_SET, 70))
+        creep = [unit_at(y=-0.0021 + 0.0021 * i / 19) for i in range(20)]  # 2.1 mm along the channel in 1 s
+        r, _ = run(us + creep, b1 + hold(B1_SET, 20), b2 + hold(B2_SET, 20))
+        self.assertEqual(r.details["still"][0], False)
+        self.assertEqual(r.score, 0.25)  # the blocks are set; the unit is not resting
+        creep = [unit_at(y=-0.0019 + 0.0019 * i / 19) for i in range(20)]  # 1.9 mm: still enough
+        r, _ = run(us + creep, b1 + hold(B1_SET, 20), b2 + hold(B2_SET, 20))
         self.assertEqual(r.score, 1.0)
+        self.assertTrue(r.success)
+        turning = [block_at(CX, L.MARK_YS[1], quat=about("z", 2.1 * i / 19)) for i in range(20)]  # 2.1 degrees
+        r, _ = run(us + hold(U_ON, 20), b1 + hold(B1_SET, 20), b2 + turning)
+        self.assertEqual(r.details["still"], [True, True, False])
+        self.assertEqual(r.score, 0.5)  # resting on the other block only; the blocks are not both set
         self.assertFalse(r.success)
-        spinning = state(B2_SET.pos, B2_SET.size, spin=(0, 0, 0.6))
-        r, _ = run(us + hold(U_ON, 70), b1 + hold(B1_SET, 70), b2 + hold(spinning, 70))
+
+    def test_a_reported_velocity_alone_does_not_stop_a_rest(self):
+        # simulator jitter in the velocity with the pose unchanged: still (the GPU demo's velocities flickered)
+        us, b1, b2 = procedure(settle=0)
+        jitter = state(U_ON.pos, U_ON.size, vel=(0, 0, -0.012))
+        r, _ = run(us + hold(jitter, 25), b1 + hold(B1_SET, 25), b2 + hold(B2_SET, 25))
         self.assertEqual(r.score, 1.0)
-        self.assertFalse(r.success)
+        self.assertTrue(r.success)
 
     def test_score_is_read_from_the_state_now(self):
         # result() of the same tracker on other states: the record (touched) is kept, the rest is re-read
@@ -447,10 +496,159 @@ class Exploits(unittest.TestCase):
         self.assertFalse(t.touched)
         self.assertEqual(r.score, 0.0)
 
-    def test_held_still_within_2mm_counts_as_resting(self):
-        # the scorer sees no gripper (stated in fidelity): held 1.5 mm above both blocks is resting on them
-        r, _ = run(*procedure(unit_end=unit_at(low=L.SET_BLOCK_TOP + 0.0015)))
+
+
+class LetGo(unittest.TestCase):
+    """The review's point: a unit held, or hovering, within reach of the blocks earns none of the resting tiers.
+    Resting needs the unit and the block let go (both finger zones 30 mm or more from each on every step of the last
+    1 s), still over it, and the support within 1 mm. Unreadable arms are never let go."""
+
+    def held_at_end(self, unit_end, n=70, who=holding_unit):
+        us, b1, b2 = procedure(unit_end=unit_end)
+        return run(us, b1, b2, arms=hold(AWAY, len(us) - n) + hold(who(us[-1]), n))
+
+    def test_held_on_the_blocks_earns_only_the_blocks(self):
+        # the unit exactly on both blocks, perfectly still, but the left gripper still closed on its top edge
+        r, _ = self.held_at_end(U_ON)
+        self.assertEqual(r.details["on_block"], [False, False])
+        self.assertEqual(r.score, 0.25)
+        self.assertFalse(r.success)
+
+    def test_held_hovering_just_above_the_blocks_earns_only_the_blocks(self):
+        for low in (0.0005, 0.0015, 0.002):
+            r, _ = self.held_at_end(unit_at(low=L.SET_BLOCK_TOP + low))
+            self.assertEqual(r.score, 0.25, low)
+            self.assertFalse(r.success, low)
+
+    def test_held_off_centre_or_on_one_block_earns_nothing_for_the_unit(self):
+        r, _ = self.held_at_end(unit_at(y=0.012))  # would be 0.75 let go
+        self.assertEqual(r.score, 0.25)
+        us, b1, b2 = procedure()
+        r, _ = run(us, b1, hold(B2_HOME, len(us)), arms=hold(AWAY, len(us) - 70) + hold(holding_unit(us[-1]), 70))
+        self.assertEqual(r.score, 0.0)  # would be 0.5 let go
+
+    def test_a_gap_over_1mm_is_not_resting(self):
+        # let go, but 1.1 mm above both blocks (as a unit wedged or held some other way would be): not resting
+        r, _ = run(*procedure(unit_end=unit_at(low=L.SET_BLOCK_TOP + 0.0011)))
+        self.assertEqual(r.score, 0.25)
+        r, _ = run(*procedure(unit_end=unit_at(low=L.SET_BLOCK_TOP + 0.0009)))
         self.assertEqual(r.score, 1.0)
+
+    def test_let_go_must_last_the_whole_last_second(self):
+        us, b1, b2 = procedure()
+        hand = holding_unit(us[-1])
+        for free, want in ((19, 0.25), (20, 1.0)):
+            r, _ = run(us, b1, b2, arms=hold(AWAY, len(us) - 40) + hold(hand, 40 - free) + hold(AWAY, free))
+            self.assertEqual(r.score, want, free)
+
+    def test_the_30mm_finger_zone_clearance(self):
+        # an open gripper straight over the unit: its zone reaches zone_radius(1.0) = 56.6 mm round the pad tips
+        top = U_ON.high[2]
+        for gap, want in ((0.029, False), (0.031, True)):
+            tips_z = top + rigstate.zone_radius(1.0) + gap
+            hands = {"left": arm((CX, CY, tips_z + 0.013), 1.0), "right": AWAY["right"]}
+            self.assertAlmostEqual(hand_gap(hands, U_ON, L.UNIT_SIZE), gap, places=6)
+            self.assertEqual(let_go_now(hands, U_ON, L.UNIT_SIZE), want)
+            us, b1, b2 = procedure()
+            r, _ = run(us, b1, b2, arms=hold(AWAY, len(us) - 70) + hold(hands, 70))
+            self.assertEqual(r.score, 1.0 if want else 0.25, gap)
+
+    def test_an_open_hand_round_the_glass_has_not_let_go(self):
+        # fingers wide open but still either side of the top edge: not let go, whatever the opening
+        us, b1, b2 = procedure()
+        top = U_ON.high[2]
+        for opening in (0.5, 1.0):
+            hands = {"left": arm((CX, CY, top - 0.016), opening), "right": AWAY["right"]}
+            self.assertFalse(let_go_now(hands, U_ON, L.UNIT_SIZE))
+            r, _ = run(us, b1, b2, arms=hold(AWAY, len(us) - 70) + hold(hands, 70))
+            self.assertEqual(r.details["on_block"], [False, False], opening)
+            self.assertLess(r.score, 0.5, opening)  # 0.25, or 0 where the wide-open zone also reaches a block
+
+    def test_unreadable_arms_are_never_let_go(self):
+        nan = float("nan")
+        good = AWAY
+        broken = [
+            None,  # no snapshot
+            {"left": good["left"]},  # a side missing
+            {"left": arm((nan, 0.3, 1.0)), "right": good["right"]},  # a non-finite TCP
+            {"left": good["left"], "right": rigstate.Arm(tcp=good["right"].tcp, tips=np.array([0.3, np.inf, 1.0]),
+                                                          opening=1.0)},  # a non-finite pad-tip point
+            {"left": good["left"], "right": arm((0.32, -0.305, 1.0), nan)},  # a non-finite opening
+            {"left": SimpleNamespace(tcp=(0.3, 0.3)), "right": good["right"]},  # a malformed arm
+            "garbage",
+        ]
+        us, b1, b2 = procedure()
+        for k, bad in enumerate(broken):
+            self.assertFalse(let_go_now(bad, U_ON, L.UNIT_SIZE), k)
+            self.assertIsNone(hand_gap(bad, U_ON, L.UNIT_SIZE), k)
+            r, t = run(us, b1, b2, arms=bad)  # unreadable for the whole trial: nothing is ever let go
+            self.assertEqual(r.score, 0.0, k)  # not even the blocks are set
+            self.assertFalse(r.success, k)
+            self.assertEqual(t.arms_unreadable, len(us), k)
+            r, t = run(us, b1, b2, arms=hold(AWAY, len(us) - 70) + hold(bad, 70))  # unreadable at the end only
+            self.assertEqual(r.score, 0.0, k)
+
+    def test_one_unreadable_step_restarts_the_count(self):
+        us, b1, b2 = procedure(settle=90)
+        n = len(us)
+        for gap_at, want in ((n - 10, 0.0), (n - 20, 0.0), (n - 21, 1.0)):
+            arms = hold(AWAY, n)
+            arms[gap_at] = None
+            r, t = run(us, b1, b2, arms=arms)
+            self.assertEqual(r.score, want, gap_at)
+            self.assertEqual(t.arms_unreadable, 1)
+
+    def test_a_distance_that_cannot_be_computed_is_not_let_go(self):
+        bad = SimpleNamespace(pos=np.array([0.3, 0.0]), quat_xyzw=np.array([0, 0, 0, 1.0]))  # a 2-vector centre
+        self.assertFalse(let_go_now(AWAY, bad, L.UNIT_SIZE))
+        self.assertEqual(hand_gap(AWAY, bad, L.UNIT_SIZE), -np.inf)
+
+    def test_a_held_block_is_not_set(self):
+        # no unit brought over; the right gripper still closed on block 1 on its mark at the end: not set (0, not
+        # the 0.25 both set and let go would earn)
+        us, b1, b2 = procedure()
+        n = len(us)
+        r, _ = run(hold(U_HOME, n), b1, b2)
+        self.assertEqual(r.score, 0.25)
+        r, _ = run(hold(U_HOME, n), b1, b2, arms=hold(AWAY, n - 70) + hold(holding_block(B1_SET), 70))
+        self.assertFalse(r.details["blocks_set"])
+        self.assertEqual(r.score, 0.0)
+        # held 0.5 mm over its mark (inside the band a block let go there could sit in): not set either
+        held_up = block_at(CX, L.MARK_YS[0], L.MARK_TOP + 0.0005)
+        self.assertTrue(block_on_sill(held_up))
+        r, _ = run(hold(U_HOME, n), b1[:-70] + hold(held_up, 70), b2,
+                   arms=hold(AWAY, n - 70) + hold(holding_block(held_up), 70))
+        self.assertEqual(r.score, 0.0)
+
+    def test_gripped_again_or_lifted_after_resting_loses_the_resting_tiers(self):
+        # let go and resting (1.0, success), then gripped again: in place, or lifted 5 mm off the blocks and held
+        us, b1, b2 = procedure()
+        r, t = run(us, b1, b2)
+        self.assertEqual(r.score, 1.0)
+        self.assertTrue(r.success)
+        lifted = unit_at(low=L.SET_BLOCK_TOP + 0.005)
+        for end in (U_ON, lifted):
+            tail = glide(U_ON, end, 10) + hold(end, 30)
+            r2, _ = run(tail, hold(b1[-1], len(tail)), hold(b2[-1], len(tail)), tracker=t,
+                        arms=[holding_unit(u) for u in tail])
+            self.assertEqual(r2.details["on_block"], [False, False])
+            self.assertEqual(r2.score, 0.25)
+            self.assertFalse(r2.success)
+            t = run(us, b1, b2)[1]
+        # lifted, then put back down and let go: no credit until it has been let go for the whole last 1 s
+        back = glide(lifted, U_ON, 10)
+        tail = glide(U_ON, lifted, 10) + back + hold(U_ON, 19)
+        hands = [holding_unit(u) for u in tail[:20]] + hold(AWAY, 19)
+        r3, t = run(tail, hold(b1[-1], len(tail)), hold(b2[-1], len(tail)), tracker=t, arms=hands)
+        self.assertEqual(r3.score, 0.25)
+        r3, _ = run([U_ON], [b1[-1]], [b2[-1]], tracker=t, arms=[AWAY])
+        self.assertEqual(r3.score, 1.0)
+
+    def test_the_success_signal_needs_everything_let_go(self):
+        r, _ = self.held_at_end(U_ON, n=200)
+        self.assertFalse(r.success)
+        r, _ = run(*procedure())
+        self.assertTrue(r.success)
 
 
 class OddStates(unittest.TestCase):
@@ -485,7 +683,7 @@ class OddStates(unittest.TestCase):
             i = len(us) - 80
             t = Tracker()
             for j, (uu, aa, bb) in enumerate(zip(us, b1, b2)):
-                r = t.update(*((u, a, b) if j == i else (uu, aa, bb)))
+                r = t.update(*((u, a, b) if j == i else (uu, aa, bb)), AWAY)
                 if j == i:
                     self.assertEqual(r.score, 0.0, k)
                     self.assertFalse(r.details["valid_state"])
@@ -493,6 +691,16 @@ class OddStates(unittest.TestCase):
             self.assertTrue(r.success, k)
             self.assertEqual(t.bad_steps, 1)
             self.assertFalse(t.touched)
+
+    def test_a_blow_up_restarts_the_let_go_and_stillness_counts(self):
+        us, b1, b2 = procedure(settle=90)
+        bad = (unit_at(x=float("nan")), B1_SET, B2_SET)
+        for after, want in ((19, 0.0), (20, 1.0)):
+            i = len(us) - after - 1
+            t, r = Tracker(), None
+            for j, (uu, aa, bb) in enumerate(zip(us, b1, b2)):
+                r = t.update(*(bad if j == i else (uu, aa, bb)), AWAY)
+            self.assertEqual(r.score, want, after)
 
     def test_random_states_give_a_listed_score(self):
         rng = np.random.default_rng(11)
@@ -579,7 +787,8 @@ class Reset(unittest.TestCase):
         self.assertTrue(t.touched)
 
 
-STUB = HERE.parent.parent / "tools" / "offline" / "yam_stub"
+OFFLINE = HERE.parent.parent / "tools" / "offline"
+STUB = OFFLINE / "yam_stub"
 
 
 def load_task():
@@ -646,48 +855,63 @@ class DemoTiming(unittest.TestCase):
         self.assertEqual(len(unit), 1)
         self.assertEqual(tuple(np.round(unit[0].pos[:2], 6)), (CX, CY))
 
-    @staticmethod
-    def _smoothstep_at(s):
-        """The fraction of a smoothstep segment's time at which it has covered ``s`` of its way."""
-        lo, hi = 0.0, 1.0
-        for _ in range(60):
-            mid = (lo + hi) / 2
-            lo, hi = (mid, hi) if mid * mid * (3 - 2 * mid) < s else (lo, mid)
-        return lo
+    def commanded(self, arm, sag=0.0):
+        """Each control step's commanded gripper (rigstate.Arm) for one arm, through the stand-in ArmPlan's own
+        interpolation; ``sag`` lowers every TCP (a tracking error or payload sag the scorer must survive)."""
+        if str(OFFLINE) not in sys.path:
+            sys.path.insert(0, str(OFFLINE))
+        import yamkin
+        from yam_arena.demo import ArmPlan
 
-    def _hold_end(self, sag):
-        """With the arm sagging ``sag`` under the unit (none offline): when the unit first rests on the blocks, when
-        the 3 s success hold is up, the commanded finger gap (m) then, and when the release ends."""
-        seg = {w.label: (t0, t1) for t0, t1, _, w in self.segments("left")}
-        d0, d1 = seg["lower the last 2 cm slowly"]
-        r0, r1 = seg["let go"]
-        grip, let_go = -2 * self.task.UNIT_GRIP, -2 * self.task.UNIT_LET_GO
-        drop = self.task.U_PLACE_Z - L.SET_BLOCK_TOP - (self.task.UNIT_TCP_UP)  # 2 mm let-go gap, commanded
-        entry = self.task.U_ENTRY_Z - self.task.U_PLACE_Z  # the slow last 20 mm
-        if sag <= drop:  # it rests only once the pads let go (opened to the unit's thickness)
-            rest = r0 + self._smoothstep_at((L.UNIT_SIZE[0] - grip) / (let_go - grip)) * (r1 - r0)
-        else:  # it rests when the commanded bottom is ``sag`` above the blocks' tops
-            rest = d0 + self._smoothstep_at(1 - (sag - drop) / entry) * (d1 - d0)
-        end = rest + self.task.SUCCESS_HOLD_S
-        tau = min(1.0, max(0.0, (end - r0) / (r1 - r0)))
-        return rest, end, grip + (let_go - grip) * tau * tau * (3 - 2 * tau), r1
+        plan = ArmPlan(list(self.plan[arm]), yamkin.BASES["station"][arm])
+        out = []
+        for k in range(round(self.stop() * HZ) + 1):
+            pos, rot, finger, _ = plan.target(k / HZ)
+            pos = np.asarray(pos, float) - np.array([0.0, 0.0, sag])
+            tips = pos + self.task.PAD * np.asarray(rot)[:, 2]
+            out.append(rigstate.Arm(tcp=pos, tips=tips, opening=float(np.clip(finger / self.task.OPEN, 0, 1))))
+        return out
 
-    def test_success_cannot_hold_while_the_gripper_holds_the_glass(self):
-        # the estimated 5.6 mm of sag: the unit rests before the slow descent ends; the 3 s are up only after the
-        # release has ended (fingers fully open)
-        rest, end, gap, released = self._hold_end(0.0056)
-        self.assertLess(rest, released - 2.0)
-        self.assertGreater(end, released)
-        self.assertAlmostEqual(gap, -2 * self.task.UNIT_LET_GO, places=6)
-        # 15 mm of sag: the pads at least 6 mm clear of each face when the 3 s are up
-        self.assertGreater(self._hold_end(0.015)[2], L.UNIT_SIZE[0] + 0.012)
+    def stop(self) -> float:
+        """When the scripted policy stops: the longer plan, then its hold."""
+        return max(sum(w.duration for w in self.plan[a]) for a in ("left", "right")) + self.HOLD_S
 
-    def test_success_comes_before_the_policy_stops_and_the_run_limit(self):
-        stop = max(sum(w.duration for w in self.plan[a]) for a in ("left", "right")) + self.HOLD_S
+    def free_from(self, sag=0.0):
+        """The first control step from which, to the policy's stop, the unit on the blocks (U_ON) and both blocks
+        on their marks are let go by both grippers (commanded poses)."""
+        left, right = self.commanded("left", sag), self.commanded("right", sag)
+        first = None
+        for k, (a, b) in enumerate(zip(left, right)):
+            hands = {"left": a, "right": b}
+            ok = all(let_go_now(hands, s, size) for s, size in
+                     ((U_ON, L.UNIT_SIZE), (B1_SET, L.BLOCK_SIZE), (B2_SET, L.BLOCK_SIZE)))
+            first = (first if first is not None else k) if ok else None
+        return first, {"left": left[-1], "right": right[-1]}
+
+    def test_the_demo_lets_go_and_clears_the_glass_before_the_policy_stops(self):
+        # from the step everything is let go: 1 s of let-go window, then the 1 s success hold, with a second to spare
+        stop = round(self.stop() * HZ)
         for sag in (0.0, 0.0056, 0.015):
-            _, end, _, _ = self._hold_end(sag)
-            self.assertLess(end, stop - 1.0, sag)  # a second of margin
-        self.assertLessEqual(round(stop * HZ), 1200)  # task.json: run limit 1,200 steps
+            first, end = self.free_from(sag)
+            self.assertIsNotNone(first, sag)
+            success_at = first + L.WINDOW_STEPS - 1 + round(self.task.SUCCESS_HOLD_S * HZ)
+            self.assertLess(success_at, stop - HZ, sag)
+            # and at the end the nearer finger zone is far past the 30 mm rule
+            self.assertGreater(hand_gap(end, U_ON, L.UNIT_SIZE), 2 * L.LET_GO_CLEAR, sag)
+        # the release ends before the retreat starts: everything let go comes after the fingers are fully open
+        seg = {w.label: (t0, t1) for t0, t1, _, w in self.segments("left")}
+        self.assertGreater(self.free_from()[0] / HZ, seg["let go"][1])
+
+    def test_straight_up_alone_would_not_count_as_let_go(self):
+        # why the demo goes back over the unit's starting spot: 18 mm over the glass, the open zone still overlaps it
+        seg = {w.label: (t0, t1, w) for t0, t1, _, w in self.segments("left")}
+        w = seg["straight up"][2]
+        hands = {"left": arm(w.pos, -w.finger / -self.task.OPEN), "right": AWAY["right"]}
+        self.assertFalse(let_go_now(hands, U_ON, L.UNIT_SIZE))
+        self.assertEqual(seg["back over its starting spot, clear of the glass"][2].pos, self.task.RETREAT_L)
+
+    def test_the_run_limit_covers_the_demo(self):
+        self.assertLessEqual(round(self.stop() * HZ), 1200)  # task.json: run limit 1,200 steps
 
 
 @unittest.skipUnless(STUB.is_dir(), "needs the offline yam_arena stub (tools/offline/yam_stub)")
@@ -756,6 +980,34 @@ class TaskFile(unittest.TestCase):
         names = [o.name for o in task.OBJECTS]
         self.assertEqual(len(names), len(set(names)))
         self.assertIn("glass_unit", names)
+
+    def test_task_json_agrees_with_the_code(self):
+        task = self.load()
+        meta = json.loads((HERE / "task.json").read_text())
+        self.assertEqual(meta["instruction"], task.INSTRUCTION)
+        self.assertEqual(meta["category"], "Societal relatability")
+        sc = meta["scoring"]
+        self.assertEqual((L.LET_GO_CLEAR, L.WINDOW_S, L.WINDOW_STEPS), (0.030, 1.0, 20))
+        self.assertEqual((L.STILL_MOVE, L.STILL_TURN_DEG, L.ON_BLOCK_GAP), (0.002, 2.0, 0.001))
+        self.assertEqual(task.SUCCESS_HOLD_S, 1.0)
+        for phrase in ("30 mm", "last 20 control steps (1 s)", "within 2 mm and 2 degrees", "within 1 mm of the block",
+                       "unreadable", "for 1 s", "1 mm below to 2 mm above the sill's top"):
+            self.assertIn(phrase, sc, phrase)
+        for stale in ("within 2 mm of the block", "for 3 s", "3 mm above the sill", "cannot see the grippers"):
+            self.assertNotIn(stale, sc + meta["fidelity"], stale)
+        readme = (HERE / "README.md").read_text()
+        self.assertIn(task.INSTRUCTION, readme)
+        self.assertNotIn("cannot see the grippers", readme)
+
+    def test_the_instruction_states_the_goal_only(self):
+        task = self.load()
+        meta = json.loads((HERE / "task.json").read_text())
+        for text in (task.INSTRUCTION, meta["title"]):
+            low = text.lower()
+            for word in (" then ", "first", "before", "after", "straight down", "lower "):
+                self.assertNotIn(word, low, (word, text))
+        self.assertLess(len(task.INSTRUCTION), 150)
+        self.assertIn("let go", task.INSTRUCTION)
 
 
 if __name__ == "__main__":

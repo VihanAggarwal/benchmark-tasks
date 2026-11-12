@@ -49,7 +49,7 @@ CHANNEL_SLACK = 0.001  # 'in the channel': every corner of the unit within the c
 TOUCH_SLACK = 0.002  # a corner within the channel's outline + this counts for 'touched the sill'
 STAND_TILT_DEG = 3.0  # 'standing': the unit's height axis within this of vertical
 DOWN_TILT_DEG = 30.0  # more than this at the end: lying down (or stood on end), 0
-ON_BLOCK_GAP = 0.002  # 'resting on a block': the unit's underside within this of the block's top, above or below
+ON_BLOCK_GAP = 0.001  # 'resting on a block': the unit's underside within this of the block's top, above or below
 ON_BLOCK_SHARE = 0.5  # ... with at least this share of the block's top under the unit
 UNIT_CENTRE_TIGHT = 0.008  # the unit's centre along y from the channel's centre: 1.0 (12 mm or more to each jamb)
 UNIT_CENTRE_LOOSE = 0.015  # 0.75
@@ -57,10 +57,17 @@ BLOCK_TIGHT = 0.008  # a block's centre from its mark's centre: 'set' (1.0, 0.25
 BLOCK_LOOSE = 0.020  # 0.75
 BLOCK_YAW_DEG = 15.0  # a block's sides within this of the channel's
 BLOCK_FLAT_DEG = 10.0  # a block lies flat: its 8 mm axis within this of vertical (either broad face down)
-BLOCK_LOW_BAND = (SILL_TOP - 0.001, SILL_TOP + 0.003)  # a block 'on the sill': its lowest point in this band
+BLOCK_LOW_BAND = (SILL_TOP - 0.001, MARK_TOP + 0.001)  # a block 'on the sill': its lowest point within 1 mm of
+#                                                        the sill's or a mark's top (1 mm below to 2 mm above the sill)
 OFF_TABLE_DROP = 0.010  # an object's lowest point this far below the table top: it fell off the table
-STILL_SPEED, STILL_SPIN = 0.01, 0.5  # 'still': under 1 cm/s and 0.5 rad/s
 CONTROL_HZ = 20.0  # the program's runs use -E control_hz=20
+# Let go and still (fail closed): every rule that credits the unit or a block as resting needs both.
+WINDOW_S = 1.0  # 'for the last 1 s': every one of the last 20 control steps, the current one included
+WINDOW_STEPS = round(WINDOW_S * CONTROL_HZ)  # 20
+LET_GO_CLEAR = 0.030  # 'let go': both grippers' finger zones (rigstate.py) at least 30 mm from the object
+STILL_MOVE = 0.002  # 'still': each of the last 20 poses within 2 mm of the current one ...
+STILL_TURN_DEG = 2.0  # ... and turned no more than 2 degrees from it
+STILL_SPEED, STILL_SPIN = 0.01, 0.5  # 'at rest' on the starting layout (reset detection only): 1 cm/s, 0.5 rad/s
 GRAVITY = 9.81
 RESET_JUMP = 0.08  # an object landing on its starting spot having moved this much further in one control step
 #                    than its last velocity and gravity could carry it was teleported: a new episode began
