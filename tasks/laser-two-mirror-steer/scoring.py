@@ -16,16 +16,23 @@ step by ``task.success()``:
 ``objects`` maps names to anything with ``pos`` (bounding-box centre), ``quat_xyzw``, ``lin_vel``, ``ang_vel``,
 ``low`` and ``high`` (world-aligned bounding box), as ``yam_arena.task_file.ObjectState`` has; only the two
 mirrors and the block are read. ``arms`` is ``rigstate.arms()`` (``{"left": Arm, "right": Arm}`` with ``tcp``,
-``tips`` and ``opening``, 0 closed .. 1 open) or ``None`` when the arms could not be read: then 'both grippers let
-go' is taken as met for that step and the step is counted in ``arms_unavailable``. A state with a non-finite
-number or a zero quaternion (a simulator blow-up), or a missing object, scores 0 for that step and leaves the
-tracker as it was.
+``tips`` and ``opening``, 0 closed .. 1 open) or ``None`` when the arms could not be read. The scorer fails
+closed: a step whose arms cannot be read (None, a side missing, a non-finite number) is a step on which the
+grippers have NOT let go, so it can never be credited with any tier above 0; such steps are counted in
+``arms_unavailable``. 'Let go' is judged from finger geometry only (the finger zone more than 20 mm from both mirrors
+and the block, whatever the opening) and must hold on every control step of the last 0.5 s; every tier above 0 (each
+credits a mirror on the beam's path) needs it, so a mirror still held earns nothing. A state with a
+non-finite number or a zero quaternion (a simulator blow-up), or a missing object, scores 0 for that step, restarts
+the let-go count and otherwise leaves the tracker as it was.
 
 Breaches (any one, at any step, scores 0 for the trial): the beam is stray; a mirror moves more than 3 mm or turns
 more than 1 degree while the beam is on it, measured from its place at the last control step before the beam came
 onto it (its last place in the dark) to every step the beam is on it and the first step after the beam leaves it,
 so a mirror swung into or out of the beam between two control steps counts, and a mirror moved behind the block
-and then lit again starts afresh; a mirror or the block falls off the table.
+and then lit again starts afresh; a mirror whose box passed through the beam's current path between two control
+steps (the volume it swept, tested exactly for each leg of the beam) counts as lit on that step, so a mirror swept
+right across the live beam between two samples is charged like one standing in it; a mirror or the block falls off
+the table.
 """
 
 from __future__ import annotations
@@ -39,6 +46,7 @@ import layout as L
 
 _KEYS = ("pos", "quat_xyzw", "lin_vel", "ang_vel", "low", "high")
 EPS = 1e-9
+SWEEP_TURN_DEG = 2.0  # a mirror's motion between two control steps is tested against the beam in pieces of this turn
 
 
 # -- states ---------------------------------------------------------------------------------------------------
@@ -285,6 +293,75 @@ def trace_beam(solids) -> Beam:
     return beam  # trapped
 
 
+# -- a mirror swept through the beam between two control steps ------------------------------------------------
+def _clip(poly: list, a: float, b: float, c: float) -> list:
+    """Clip a convex polygon in the (t, s) plane to the half-plane a + b t + c s <= 0 (Sutherland-Hodgman)."""
+    out = []
+    for i, p in enumerate(poly):
+        q = poly[(i + 1) % len(poly)]
+        fp, fq = a + b * p[0] + c * p[1], a + b * q[0] + c * q[1]
+        if fp <= 0.0:
+            out.append(p)
+        if (fp < 0.0 < fq) or (fq < 0.0 < fp):
+            k = fp / (fp - fq)
+            out.append((p[0] + k * (q[0] - p[0]), p[1] + k * (q[1] - p[1])))
+    return out
+
+
+def segment_meets_slide(p0, p1, c0, c1, rot, half) -> bool:
+    """Whether the segment p0-p1 meets the volume a box (axes ``rot``, half sizes ``half``) sweeps while its centre
+    slides from c0 to c1 without turning: is there t, s in [0, 1] with p0 + t (p1 - p0) inside the box centred at
+    c0 + s (c1 - c0)? Exact: the conditions are linear in (t, s), so the unit square is clipped by the box's six
+    faces and the segment meets the swept volume unless nothing is left (touching counts)."""
+    rot = np.asarray(rot, dtype=float)
+    a = rot.T @ (np.asarray(p0, dtype=float) - np.asarray(c0, dtype=float))
+    b = rot.T @ (np.asarray(p1, dtype=float) - np.asarray(p0, dtype=float))
+    c = -(rot.T @ (np.asarray(c1, dtype=float) - np.asarray(c0, dtype=float)))
+    poly = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+    for i in range(3):
+        h = float(half[i]) + EPS
+        for sg in (1.0, -1.0):  # sg (a + b t + c s) - h <= 0
+            poly = _clip(poly, sg * a[i] - h, sg * b[i], sg * c[i])
+            if not poly:
+                return False
+    return True
+
+
+def _slerp(q0, q1, f: float) -> np.ndarray:
+    q0 = np.asarray(q0, dtype=float) / np.linalg.norm(q0)
+    q1 = np.asarray(q1, dtype=float) / np.linalg.norm(q1)
+    dot = float(q0 @ q1)
+    if dot < 0.0:  # the shorter way round
+        q1, dot = -q1, -dot
+    if dot > 0.9995:
+        q = q0 + f * (q1 - q0)
+    else:
+        th = math.acos(min(1.0, dot))
+        q = (math.sin((1 - f) * th) * q0 + math.sin(f * th) * q1) / math.sin(th)
+    return q / np.linalg.norm(q)
+
+
+def swept_through_beam(name: str, pos0, quat0, pos1, quat1, beam: Beam) -> bool:
+    """Whether a loose part's box, going from (pos0, quat0) at the previous control step to (pos1, quat1) at this
+    one, passed through the beam's current path on the way: the step is cut into pieces of at most SWEEP_TURN_DEG of
+    turn (the shorter way round), and each piece's slide is tested, exactly, at its start and end orientations
+    against every leg of the beam."""
+    half = np.array(L.SIZES[name], dtype=float) / 2
+    turn = turn_deg(rotation(quat0), rotation(quat1))
+    n = max(1, int(math.ceil(turn / SWEEP_TURN_DEG)))
+    pos0, pos1 = np.asarray(pos0, dtype=float), np.asarray(pos1, dtype=float)
+    legs = list(zip(beam.points[:-1], beam.points[1:]))
+    prev_c, prev_r = pos0, rotation(quat0)
+    for k in range(1, n + 1):
+        f = k / n
+        c, r = pos0 + f * (pos1 - pos0), rotation(_slerp(quat0, quat1, f))
+        for p0, p1 in legs:
+            if any(segment_meets_slide(p0, p1, prev_c, c, rr, half) for rr in (prev_r, r)):
+                return True
+        prev_c, prev_r = c, r
+    return False
+
+
 # -- the arms -------------------------------------------------------------------------------------------------
 def point_box_distance(p, lo, hi) -> float:
     """Distance from a point to a world-aligned box (0 inside it)."""
@@ -313,21 +390,64 @@ def finger_zone(arm, samples: int = 20) -> tuple[np.ndarray, float]:
     return tips - np.outer(s, u), zone_radius(arm)
 
 
+def _upright_gap(arm, r: float, lo, hi) -> float:
+    """How far an upright cylinder that contains the finger zone is from a world-aligned box (0 if they overlap).
+    For a gripper pointing straight down it is the finger zone itself: a cylinder of radius r about the axis, from
+    the tips to FINGER_LEN up, so nothing below the tips counts. A tilted gripper's zone is covered by a wider and
+    taller upright cylinder (its axis leans |u_xy| per metre; each end disc reaches r |u_xy| up and down)."""
+    tcp, tips = np.asarray(arm.tcp, dtype=float), np.asarray(arm.tips, dtype=float)
+    u = tips - tcp
+    n = float(np.linalg.norm(u))
+    u = u / n if n > 1e-6 else np.array([0.0, 0.0, -1.0])
+    top = tips - L.FINGER_LEN * u  # the zone's far end, up the gripper
+    lean = float(math.hypot(u[0], u[1]))
+    centre = (tips[:2] + top[:2]) / 2
+    radius = r + L.FINGER_LEN * lean / 2
+    z0, z1 = min(tips[2], top[2]) - r * lean, max(tips[2], top[2]) + r * lean
+    lo, hi = np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
+    across = float(np.linalg.norm(np.maximum(0.0, np.maximum(lo[:2] - centre, centre - hi[:2])))) - radius
+    up = max(float(lo[2]) - z1, z0 - float(hi[2]))
+    return float(math.hypot(max(0.0, across), max(0.0, up)))
+
+
 def zone_gap(arm, lo, hi) -> float:
-    """How far a gripper's finger zone is from a world-aligned box (negative: they overlap)."""
+    """How far a gripper's finger zone (a cylinder of radius zone_radius about its axis, from the tips to FINGER_LEN
+    up) is from a world-aligned box, never more than the true distance: the larger of two lower bounds, a capsule
+    about the axis (which reaches r past the tips) and an upright cylinder that contains the zone (exact for a
+    gripper pointing straight down). 0 or negative: they overlap; NaN if either cannot be computed."""
     pts, r = finger_zone(arm)
-    return min(point_box_distance(p, lo, hi) for p in pts) - r
+    capsule = min(point_box_distance(p, lo, hi) for p in pts) - r
+    upright = _upright_gap(arm, r, lo, hi)
+    if not (math.isfinite(capsule) and math.isfinite(upright)):
+        return math.nan
+    return max(capsule, upright)
 
 
 def let_go(arm, states: dict) -> bool:
-    """The gripper holds nothing: it is open (opening 0.9 or more), or its finger zone is more than 10 mm from both
-    mirrors and the block."""
-    if float(arm.opening) >= L.GRIPPER_OPEN:
-        return True
-    return all(zone_gap(arm, states[n].low, states[n].high) > L.LET_GO_GAP for n in L.LOOSE)
+    """The gripper holds nothing and touches nothing: its finger zone is more than 20 mm from both mirrors and the
+    block, open or closed (an open hand resting on a part has not let go). A gap that cannot be computed (an error
+    or a non-finite number) is not let go."""
+    try:
+        gaps = [zone_gap(arm, states[n].low, states[n].high) for n in L.LOOSE]
+    except (KeyError, AttributeError, TypeError, ValueError):
+        return False
+    return all(math.isfinite(g) and g > L.LET_GO_GAP for g in gaps)
+
+
+def finger_clearance(arm, states: dict) -> float | None:
+    """The smallest gap from a gripper's finger zone to the mirrors and the block (m; None if it cannot be computed),
+    for the trace."""
+    try:
+        g = min(zone_gap(arm, states[n].low, states[n].high) for n in L.LOOSE)
+    except (KeyError, AttributeError, TypeError, ValueError):
+        return None
+    return g if math.isfinite(g) else None
 
 
 def grippers_released(arms, states: dict) -> bool:
+    """Both grippers let go on this step; unreadable arms are never released (fail closed)."""
+    if not arms_valid(arms):
+        return False
     return let_go(arms["left"], states) and let_go(arms["right"], states)
 
 
@@ -356,17 +476,20 @@ class Tracker:
 
     def __init__(self, control_hz: float = L.CONTROL_HZ) -> None:
         self.dt = 1.0 / control_hz
+        self.release_need = max(1, int(round(L.RELEASE_HOLD_S * control_hz)))  # 10 steps at 20 Hz
         self.reset()
 
     def reset(self) -> None:
         self.steps = 0
         self.breaches: dict[str, int] = {}  # breach -> the control step it first happened
-        self.lit_ref: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # mirror -> its last pose before this lit spell
-        self.last_pose: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # mirror -> pose at the previous valid step
+        self.lit_ref: dict[str, tuple] = {}  # mirror -> (pos, rot, quat), its last pose before this lit spell
+        self.last_pose: dict[str, tuple] = {}  # mirror -> (pos, rot, quat) at the previous valid step
+        self.swept: list[str] = []  # mirrors whose box passed through the beam between the last two steps
         self.max_lit_move = 0.0  # m: the most a mirror moved in one lit spell (from its last place in the dark)
         self.max_lit_turn = 0.0  # degrees
         self.first_lit: dict[str, int] = {}  # mirror -> the first control step the beam met it
-        self.arms_unavailable = 0  # control steps on which rigstate could not read the arms
+        self.arms_unavailable = 0  # control steps on which rigstate could not read the arms (never let go)
+        self.release_streak = 0  # consecutive control steps, up to this one, with both grippers let go
         self.bad_steps = 0  # control steps with a missing or non-finite object state (ignored)
         self.last: Result = Result(0.0, False, {})
         self.prev = None  # [(centre, velocity)] of the loose objects at the previous valid control step
@@ -407,6 +530,7 @@ class Tracker:
         if states is None:  # a blow-up or a missing object: score 0 for this step, keep everything as it was
             self.steps += 1
             self.bad_steps += 1
+            self.release_streak = 0  # nothing could be judged on this step: the let-go count starts again
             self.last = self.result(objects, arms)
             return self.last
         now = [(np.array(states[n].pos, dtype=float), np.array(states[n].lin_vel, dtype=float)) for n in L.LOOSE]
@@ -419,18 +543,28 @@ class Tracker:
         beam = trace_beam(scene_solids(states))
         if beam.stray:
             self._flag("beam_stray")
+        self.swept = []
         for m in L.MIRRORS:
-            pos, rot = np.array(states[m].pos, dtype=float), rotation(states[m].quat_xyzw)
-            if m in beam.lit:
+            quat = np.array(states[m].quat_xyzw, dtype=float)
+            pos, rot = np.array(states[m].pos, dtype=float), rotation(quat)
+            lit = m in beam.lit
+            if not lit and m in self.last_pose:
+                # Not on the beam at either sampled step, but its box may have passed through the beam's current
+                # path between them (0.5 m/s is 25 mm a step, more than a mount's 20 mm): that counts as lit.
+                p0, _, q0 = self.last_pose[m]
+                lit = swept_through_beam(m, p0, q0, pos, quat, beam)
+                if lit:
+                    self.swept.append(m)
+            if lit:
                 self.first_lit.setdefault(m, self.steps)
                 # A new lit spell is measured from where the mirror stood at the last step in the dark, so a mirror
                 # swung into the beam between two control steps has moved while lit.
-                ref = self.lit_ref.setdefault(m, self.last_pose.get(m, (pos, rot)))
+                ref = self.lit_ref.setdefault(m, self.last_pose.get(m, (pos, rot, quat)))
             else:
                 # Dark again: the first dark step still counts (a mirror swung out of the beam between two steps
                 # moved while lit); the next lit spell starts afresh.
                 ref = self.lit_ref.pop(m, None)
-            self.last_pose[m] = (pos, rot)
+            self.last_pose[m] = (pos, rot, quat)
             if ref is None:
                 continue
             move, turn = float(np.linalg.norm(pos - ref[0])), turn_deg(ref[1], rot)
@@ -442,6 +576,7 @@ class Tracker:
             self._flag("object_off_table")
         if not arms_valid(arms):
             self.arms_unavailable += 1
+        self.release_streak = self.release_streak + 1 if grippers_released(arms, states) else 0
         self.last = self._result(states, arms, beam)
         return self.last
 
@@ -455,13 +590,17 @@ class Tracker:
 
     def _result(self, states: dict, arms, beam: Beam) -> Result:
         have_arms = arms_valid(arms)
-        released = grippers_released(arms, states) if have_arms else True  # unreadable: taken as met, counted
+        released_now = grippers_released(arms, states)  # False when the arms cannot be read (fail closed)
+        # Every tier that credits a mirror on the beam's path needs both grippers let go on this step and on every
+        # step of the last 0.5 s (the streak is counted by update(), which task.success() runs before task.score()
+        # every control step): a mirror still held, or a hand still on a part, earns nothing.
+        released = released_now and self.release_streak >= self.release_need
         both = beam.mirrors >= set(L.MIRRORS)
         gone = any(off_table(states[n]) for n in L.LOOSE)
         off = beam.det_off
-        if self.breach or beam.stray or gone:
+        if self.breach or beam.stray or gone or not released:
             score = 0.0
-        elif both and beam.on_detector and off <= L.CENTRE_TIGHT and released:
+        elif both and beam.on_detector and off <= L.CENTRE_TIGHT:
             score = 1.0
         elif both and beam.on_detector:
             score = 0.75
@@ -488,13 +627,18 @@ class Tracker:
             "max_lit_move_mm": _mm(self.max_lit_move),
             "max_lit_turn_deg": round(self.max_lit_turn, 3),
             "first_lit_step": dict(self.first_lit),
+            "swept_through_beam": list(self.swept),
             "mirror_left_yaw_deg": round(mirror_yaw_deg(states["mirror_left"]), 3),
             "mirror_right_yaw_deg": round(mirror_yaw_deg(states["mirror_right"]), 3),
             "mirror_left_tilt_deg": round(normal_tilt_deg(states["mirror_left"]), 3),
             "mirror_right_tilt_deg": round(normal_tilt_deg(states["mirror_right"]), 3),
             "off_table": gone,
             "opening": ({s: round(float(arms[s].opening), 3) for s in ("left", "right")} if have_arms else None),
-            "grippers_let_go": released if have_arms else None,
+            "grippers_let_go": released_now,
+            "finger_gap_mm": ({s: _mm(finger_clearance(arms[s], states)) for s in ("left", "right")}
+                              if have_arms else None),
+            "let_go_steps": self.release_streak,
+            "grippers_released": released,
             "arms_available": have_arms,
             "arms_unavailable": self.arms_unavailable,
             "bad_steps": self.bad_steps,

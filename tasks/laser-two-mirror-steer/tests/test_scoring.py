@@ -91,6 +91,16 @@ def snap(left_tcp=READY_L, left_open=OPEN, right_tcp=READY_R, right_open=OPEN):
 
 
 FINAL = scene(M1T, M2T, B0)
+RELEASE_STEPS = int(round(L.RELEASE_HOLD_S * HZ))  # 10: both grippers let go on every step of the last 0.5 s
+
+
+def settle(objs, arms=None, t=None, n=RELEASE_STEPS):
+    """Feed the same state n times (default: just long enough for the let-go hold) and return the last result."""
+    t = t or Tracker(HZ)
+    r = None
+    for _ in range(n):
+        r = t.update(objs, snap() if arms is None else arms())
+    return r
 
 
 class Film:
@@ -231,7 +241,7 @@ class Beam(unittest.TestCase):
         self.assertFalse(b.on_detector)
         self.assertIsNone(b.det_off)
         self.assertAlmostEqual(b.points[-1][1], L.DET_Y + L.DET_HALF_W, places=6)
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 0.25)
+        self.assertEqual(settle(objs).score, 0.25)
 
     def test_block_stops_the_beam(self):
         b = beam_of(scene(b=BS, ml=M1T, mr=M2T))
@@ -256,17 +266,17 @@ class Beam(unittest.TestCase):
         b = beam_of(objs)
         self.assertEqual(b.end, "table")
         self.assertEqual(b.reflections, ["mirror_left"])
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 0.25)
+        self.assertEqual(settle(objs).score, 0.25)
         self.assertAlmostEqual(b.points[-1][2], L.TOP, places=9)
         # a small tilt keeps it on M2 and the detector but moves the spot down (or up)
         objs = scene(ml=M1T, mr=M2T, ml_kw={"tilt": 0.5})  # 7 mm low: still within 10 mm
         b = beam_of(objs)
         self.assertTrue(b.on_detector)
         self.assertLess(b.det_dz, -0.005)
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 1.0)
+        self.assertEqual(settle(objs).score, 1.0)
         objs = scene(ml=M1T, mr=M2T, ml_kw={"tilt": 1.0})  # 15 mm low: on the face, off centre
         self.assertLess(beam_of(objs).det_dz, -0.010)
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 0.75)
+        self.assertEqual(settle(objs).score, 0.75)
 
     def test_trapped_beam_stays_on_the_table(self):
         old = L.MAX_BOUNCES
@@ -320,28 +330,150 @@ class Tiers(unittest.TestCase):
         # the right mirror dx too far forward: the spot moves dx; past 14.1 mm the beam meets that mirror's rim
         for dx, want in ((0.009, 1.0), (0.011, 0.75), (0.014, 0.75), (0.0145, 0.25), (0.019, 0.25)):
             objs = scene(M1T, M2T + [dx, 0, 0, 0], B0)
-            self.assertEqual(Tracker(HZ).update(objs, snap()).score, want, dx)
+            self.assertEqual(settle(objs).score, want, dx)
 
-    def test_gripper_still_on_a_mirror_scores_075(self):
+    def test_gripper_still_on_a_mirror_scores_zero(self):
+        # the 1.0 layout with the left gripper closed again on the left mirror: held credit never pays
         f = procedure(settle=0)
         f.go(20, L=tcp_over(M1T), Lo=SHUT_M).hold(30)
         r, _ = play(f)
-        self.assertEqual(r.score, 0.75)
+        self.assertEqual(r.score, 0.0)
         self.assertFalse(r.details["grippers_let_go"])
+        self.assertEqual(r.details["beam_end"], "detector")
 
-    def test_block_still_gripped_at_the_end_scores_075(self):
+    def _held(self, objs, side, key, want):
+        """objs scored with one gripper closed on the mirror ``key`` (0) and with both let go (want)."""
+        p = np.asarray(objs[key].pos, float)
+        tcp = tcp_over(np.array([p[0], p[1], p[2], 0.0]))
+        held = (lambda: snap(left_tcp=tcp, left_open=SHUT_M)) if side == "L" else \
+            (lambda: snap(right_tcp=tcp, right_open=SHUT_M))
+        r = settle(objs, arms=held, n=RELEASE_STEPS + 20)
+        self.assertEqual(r.score, 0.0, key)
+        self.assertFalse(r.details["grippers_let_go"], key)
+        self.assertEqual(r.details["breaches"], [], key)
+        self.assertEqual(settle(objs).score, want, key)
+
+    def test_held_mirror_earns_nothing_at_the_075_tier(self):
+        # spot 12 mm off centre on the detector (0.75 once let go), a mirror still held: 0
+        objs = scene(M1T, M2T + [0.012, 0, 0, 0], B0)
+        self.assertTrue(beam_of(objs).on_detector)
+        self._held(objs, "R", "mirror_right", 0.75)
+        self._held(objs, "L", "mirror_left", 0.75)
+
+    def test_held_mirror_earns_nothing_at_the_05_tier(self):
+        # off both mirrors onto the backstop (0.5 once let go), a mirror still held: 0
+        objs = scene(M1T, M2T + [0, 0, 0, 8.0], B0)
+        self.assertEqual(beam_of(objs).end, "backstop")
+        self._held(objs, "R", "mirror_right", 0.5)
+        self._held(objs, "L", "mirror_left", 0.5)
+
+    def test_held_mirror_earns_nothing_at_the_025_tier(self):
+        # one mirror held in the beam aiming it onto the detector's face (0.25 once let go): 0
+        objs = scene([0.40, L.LASER_Y, UP, 33.0], MR0, B0)
+        self.assertEqual(beam_of(objs).reflections, ["mirror_left"])
+        self._held(objs, "L", "mirror_left", 0.25)
+
+    def test_tiers_stay_ordered_and_need_let_go(self):
+        # every outcome maps to one score; with a gripper not let go every outcome is 0
+        cases = [(FINAL, 1.0), (scene(M1T, M2T + [0.012, 0, 0, 0], B0), 0.75),
+                 (scene(M1T, M2T + [0, 0, 0, 8.0], B0), 0.5), (scene([0.40, L.LASER_Y, UP, 33.0], MR0, B0), 0.25),
+                 (scene(M1T, M2T, BS), 0.0)]
+        on_block = lambda: snap(left_tcp=tcp_over(B0), left_open=SHUT_B)  # noqa: E731
+        for objs, want in cases:
+            self.assertEqual(settle(objs).score, want)
+            self.assertEqual(settle(objs, arms=on_block).score, 0.0, want)
+            self.assertEqual(settle(objs, arms=lambda: None).score, 0.0, want)
+        self.assertEqual([w for _, w in cases], sorted((w for _, w in cases), reverse=True))
+
+    def test_block_still_gripped_at_the_end_scores_zero(self):
         f = procedure(settle=0)
         f.go(20, L=tcp_over(B0), Lo=SHUT_B).hold(30)  # back down and closed round the block on its place
         r, _ = play(f)
-        self.assertEqual(r.score, 0.75)
+        self.assertEqual(r.score, 0.0)
         self.assertFalse(r.details["grippers_let_go"])
 
-    def test_open_fingers_still_round_a_mirror_have_let_go(self):
+    def test_open_fingers_still_round_a_mirror_have_not_let_go(self):
         f = procedure(settle=0)
         f.go(20, L=tcp_over(M1T), Lo=OPEN).hold(30)  # open fingers back down round the left mirror
         r, _ = play(f)
-        self.assertEqual(r.score, 1.0)
-        self.assertTrue(r.details["grippers_let_go"])
+        self.assertEqual(r.score, 0.0)
+        self.assertFalse(r.details["grippers_let_go"])
+
+    def test_open_hand_resting_on_the_block_has_not_let_go(self):
+        f = procedure(settle=0)
+        top = np.array([B0[0], B0[1], UP + 0.030 + TIPS])  # pad tips on the block's top face, fully open
+        f.go(20, L=top, Lo=OPEN).hold(30)
+        r, _ = play(f)
+        self.assertEqual(r.score, 0.0)
+        self.assertFalse(r.details["grippers_let_go"])
+
+    def test_let_go_must_hold_for_half_a_second(self):
+        t = Tracker(HZ)
+        on = snap(right_tcp=tcp_over(M2T), right_open=SHUT_M)
+        for _ in range(5):
+            t.update(FINAL, on)
+        for i in range(1, RELEASE_STEPS + 1):
+            r = t.update(FINAL, snap())
+            self.assertEqual(r.score, 1.0 if i >= RELEASE_STEPS else 0.0, i)
+            self.assertTrue(r.details["grippers_let_go"])
+            self.assertEqual(r.details["let_go_steps"], i)
+        self.assertEqual(RELEASE_STEPS, 10)
+
+    def test_the_let_go_gap_is_20_mm(self):
+        # the right gripper closed, pointing straight down, its tips just over / just under 20 mm above the right
+        # mirror's top: the zone runs from the tips up, so the gap is measured from the tips
+        top = float(FINAL["mirror_right"].high[2])
+        for opening in (0.0, OPEN):
+            for gap, want in ((0.0205, True), (0.0195, False)):
+                tcp = (M2T[0], M2T[1], top + gap + TIPS)
+                a = snap(right_tcp=tcp, right_open=opening)
+                self.assertEqual(S.let_go(a["right"], {n: FINAL[n] for n in L.LOOSE}), want, (opening, gap))
+        self.assertAlmostEqual(L.LET_GO_GAP, 0.020)
+
+    def test_the_let_go_gap_beside_a_part(self):
+        # beside the block, level with it: the gap is from the zone's outer radius (open 56.6 mm, closed 15.7 mm)
+        states = {n: FINAL[n] for n in L.LOOSE}
+        side = float(FINAL["block"].high[1])  # the block's +y face
+        z = L.TOP + 0.050
+        for opening in (0.0, OPEN):
+            r = S.zone_radius(SimpleNamespace(opening=opening))
+            for gap, want in ((0.0205, True), (0.0195, False)):
+                a = snap(left_tcp=(B0[0], side + r + gap, z), left_open=opening)
+                self.assertEqual(S.let_go(a["left"], states), want, (opening, gap))
+
+    def test_a_tilted_gripper_is_judged_conservatively(self):
+        # a gripper lying on its side next to the block: the bound is never larger than the true gap
+        states = {n: FINAL[n] for n in L.LOOSE}
+        hi = FINAL["block"].high
+        tips = np.array([B0[0], float(hi[1]) + 0.030, L.TOP + 0.030])
+        arm = SimpleNamespace(tcp=tips + [0.0, TIPS, 0.0], tips=tips, opening=0.0)
+        # truth: the zone runs from the tips 38 mm along +y with radius 15.7 mm; the block's face is 30 mm away
+        self.assertLess(S.zone_gap(arm, FINAL["block"].low, hi), 0.030 + 1e-6)
+        self.assertFalse(S.let_go(arm, states))
+        arm.tips = tips + [0.0, 0.040, 0.0]
+        arm.tcp = arm.tips + [0.0, TIPS, 0.0]
+        self.assertTrue(S.let_go(arm, states))  # 70 mm clear
+
+    def test_zone_gap_never_exceeds_the_true_gap(self):
+        # random grippers against the block: compare with a dense sample of the true finger cylinder
+        rng = np.random.default_rng(3)
+        lo, hi = FINAL["block"].low, FINAL["block"].high
+        for _ in range(60):
+            tips = np.array([B0[0], B0[1], L.TOP + 0.03]) + rng.uniform(-0.12, 0.12, 3)
+            u = rng.normal(size=3)
+            u /= np.linalg.norm(u)
+            arm = SimpleNamespace(tips=tips, tcp=tips - TIPS * u, opening=float(rng.uniform(0, 1)))
+            r = S.zone_radius(arm)
+            e1 = np.cross(u, [1.0, 0, 0] if abs(u[0]) < 0.9 else [0, 1.0, 0])
+            e1 /= np.linalg.norm(e1)
+            e2 = np.cross(u, e1)
+            best = math.inf
+            for sv in np.linspace(0, L.FINGER_LEN, 12):
+                for rv in np.linspace(0, r, 5):
+                    for th in np.linspace(0, 2 * math.pi, 24, endpoint=False):
+                        q = tips - sv * u + rv * (math.cos(th) * e1 + math.sin(th) * e2)
+                        best = min(best, S.point_box_distance(q, lo, hi))
+            self.assertLessEqual(S.zone_gap(arm, lo, hi), best + 1e-9)
 
     def test_a_gripper_closed_far_away_has_let_go(self):
         f = procedure(settle=0)
@@ -354,13 +486,13 @@ class Tiers(unittest.TestCase):
         objs = scene(M1T, M2T + [0, 0, 0, 8.0], B0)  # right mirror 8 deg off: the beam ends on the backstop
         b = beam_of(objs)
         self.assertEqual(b.end, "backstop")
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 0.5)
+        self.assertEqual(settle(objs).score, 0.5)
 
     def test_block_downstream_scores_half(self):
         # block moved onto the last leg, in front of the detector: off both mirrors, stopped on the table
         objs = scene(M1T, M2T, [0.20, L.DET_Y, UP, 0.0])
         self.assertEqual(beam_of(objs).end, "block")
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 0.5)
+        self.assertEqual(settle(objs).score, 0.5)
 
     def test_one_mirror_straight_onto_the_detector_scores_quarter(self):
         # one mirror far out on the beam, turned to send it diagonally onto the detector's face: one reflection
@@ -368,7 +500,7 @@ class Tiers(unittest.TestCase):
         b = beam_of(objs)
         self.assertEqual(b.reflections, ["mirror_left"])
         self.assertTrue(b.on_detector)
-        self.assertEqual(Tracker(HZ).update(objs, snap()).score, 0.25)
+        self.assertEqual(settle(objs).score, 0.25)
 
     def test_block_left_in_scores_zero(self):
         r = Tracker(HZ).update(scene(M1T, M2T, BS), snap())
@@ -377,12 +509,12 @@ class Tiers(unittest.TestCase):
 
     def test_success_needs_stillness(self):
         objs = scene(M1T, M2T, B0, b_kw={"vel": (0.02, 0, 0)})
-        r = Tracker(HZ).update(objs, snap())
+        r = settle(objs)
         self.assertEqual(r.score, 1.0)
         self.assertFalse(r.success)
         objs = scene(M1T, M2T, B0, ml_kw={"spin": (0, 0, 0.6)})
-        self.assertFalse(Tracker(HZ).update(objs, snap()).success)
-        self.assertTrue(Tracker(HZ).update(FINAL, snap()).success)
+        self.assertFalse(settle(objs).success)
+        self.assertTrue(settle(FINAL).success)
 
     def test_result_alone_judges_the_current_beam(self):
         # result() (task.score) on a state the tracker was never fed still scores a stray beam or a fallen part 0
@@ -390,7 +522,12 @@ class Tiers(unittest.TestCase):
         fallen = scene(M1T, M2T, [L.BLOCK_X, 0.70, L.TOP - 0.3, 0.0])
         self.assertTrue(beam_of(fallen).on_detector)
         self.assertEqual(Tracker(HZ).result(fallen, snap()).score, 0.0)
-        self.assertEqual(Tracker(HZ).result(FINAL, snap()).score, 1.0)
+        # a tracker that has never seen the grippers let go gives nothing (the 0.5 s let-go hold is counted by
+        # update()); after the hold it gives 1.0
+        self.assertEqual(Tracker(HZ).result(FINAL, snap()).score, 0.0)
+        t = Tracker(HZ)
+        settle(FINAL, t=t)
+        self.assertEqual(t.result(FINAL, snap()).score, 1.0)
 
     def test_score_is_idempotent(self):
         _, t = play(procedure())
@@ -440,7 +577,7 @@ class Rules(unittest.TestCase):
             f = Film(ml=M1T, mr=M2T).hold(5).go(40, ml=M1T + [0, 0, 0, turn]).hold(5)
             r, t = play(f)
             self.assertEqual("lit_mirror_moved" in t.breaches, breach, turn)
-        self.assertEqual(Tracker(HZ).update(start, snap()).score, 1.0)
+        self.assertEqual(settle(start).score, 1.0)
 
     def test_nudging_a_lit_mirror(self):
         for dx, breach in ((0.002, False), (0.004, True)):
@@ -473,12 +610,14 @@ class Rules(unittest.TestCase):
         self.assertEqual(r.details["first_breach_step"], 1)
 
     def test_holding_a_mirror_still_in_the_beam_is_not_moving_it(self):
-        # the gripper still closed on the lit right mirror (it is not moving): 0.75, not 0, not 1.0
+        # the gripper still closed on the lit right mirror (it is not moving): no breach, but held earns 0; let go,
+        # 1.0
         t = Tracker(HZ)
         for _ in range(30):
             r = t.update(FINAL, snap(right_tcp=tcp_over(M2T), right_open=SHUT_M))
         self.assertEqual(t.breaches, {})
-        self.assertEqual(r.score, 0.75)
+        self.assertEqual(r.score, 0.0)
+        self.assertEqual(settle(FINAL, t=t).score, 1.0)
 
 
 class Exploits(unittest.TestCase):
@@ -534,6 +673,88 @@ class Exploits(unittest.TestCase):
         self.assertEqual(t.breaches["lit_mirror_moved"], 12)
         self.assertEqual(r.score, 0.0)
 
+    # A mirror turned edge-on to the beam (yaw 90: its 20 mm thickness across the beam) at x 0.30, carried along -y
+    # at 0.5 m/s (25 mm a step): at one control step its box ends 2.5 mm before the beam's first leg, at the next
+    # 2.5 mm past it. Neither sample has the beam on it.
+    PASS_BEFORE = np.array([0.30, L.LASER_Y + 0.0125, UP, 90.0])
+    PASS_AFTER = np.array([0.30, L.LASER_Y - 0.0125, UP, 90.0])
+
+    def _pass_through(self, dz=0.0, **start):
+        f = Film(mr=M2T, **start).hold(5).go(20, ml=self.PASS_BEFORE + [0, 0, dz, 0])
+        f.go(1, ml=self.PASS_AFTER + [0, 0, dz, 0]).go(20, ml=[0.30, 0.10, UP + dz, 90.0]).hold(10)
+        return f
+
+    def test_a_one_step_pass_through_is_charged(self):
+        f = self._pass_through()
+        lit_at = len(f.frames) - 30  # the step after PASS_BEFORE, numbered from 1
+        old = S.swept_through_beam
+        try:
+            S.swept_through_beam = lambda *a, **k: False  # the sampled steps alone never see it
+            _, t = play(f)
+            self.assertEqual(t.breaches, {})
+            self.assertEqual(t.first_lit, {})
+        finally:
+            S.swept_through_beam = old
+        r, t = play(f)
+        self.assertIn("lit_mirror_moved", t.breaches)
+        self.assertEqual(t.breaches["lit_mirror_moved"], lit_at)
+        self.assertGreaterEqual(t.max_lit_move, 0.025 - 1e-9)  # 25 mm on the step it went through
+        self.assertEqual(t.first_lit["mirror_left"], lit_at)
+        self.assertEqual(r.score, 0.0)
+        self.assertNotIn("beam_stray", t.breaches)
+        # the trace names the mirror on the step it went through
+        t2 = Tracker(HZ)
+        play(Film(mr=M2T).hold(5).go(20, ml=self.PASS_BEFORE), t2)
+        r2 = t2.update(scene(self.PASS_AFTER, M2T, B0), snap())
+        self.assertEqual(r2.details["swept_through_beam"], ["mirror_left"])
+
+    def test_a_pass_through_behind_the_block_is_fine(self):
+        r, t = play(self._pass_through(b=BS))
+        self.assertEqual(t.breaches, {})
+        self.assertEqual(t.first_lit, {})
+
+    def test_a_pass_over_the_beam_is_fine(self):
+        # the mirror's bottom 5 mm above the beam: clear; 5 mm below it: charged
+        _, t = play(self._pass_through(dz=0.045))
+        self.assertEqual(t.breaches, {})
+        _, t = play(self._pass_through(dz=0.035))
+        self.assertIn("lit_mirror_moved", t.breaches)
+
+    def test_a_mirror_spun_through_the_beam_in_one_step_is_charged(self):
+        # edge-on, 22 mm from the beam (dark), turned half a turn in one step: its 60 mm width swept the beam
+        p = np.array([0.30, L.LASER_Y + 0.022, UP, 90.0])
+        f = Film(mr=M2T).hold(5).go(20, ml=p).go(1, ml=p + [0, 0, 0, -180.0]).hold(10)
+        _, t = play(f)
+        self.assertIn("lit_mirror_moved", t.breaches)
+        self.assertGreater(t.max_lit_turn, 90.0)
+
+    def test_segment_meets_slide(self):
+        rot, half = np.eye(3), np.array([0.01, 0.03, 0.03])
+        p0, p1 = np.array([0.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0])
+        self.assertTrue(S.segment_meets_slide(p0, p1, [0.5, 0.05, 0], [0.5, -0.05, 0], rot, half))  # across
+        self.assertFalse(S.segment_meets_slide(p0, p1, [0.5, 0.05, 0], [0.5, 0.031, 0], rot, half))  # stops short
+        self.assertTrue(S.segment_meets_slide(p0, p1, [0.5, 0.05, 0], [0.5, 0.03, 0], rot, half))  # touches
+        self.assertFalse(S.segment_meets_slide(p0, p1, [1.2, 0.05, 0], [1.2, -0.05, 0], rot, half))  # past its end
+        self.assertFalse(S.segment_meets_slide(p0, p1, [0.5, 0.05, 0.04], [0.5, -0.05, 0.04], rot, half))  # above
+        # random slides against a dense sample: never a miss
+        rng = np.random.default_rng(11)
+        for _ in range(200):
+            c0, c1 = rng.uniform(-0.06, 0.06, 3), rng.uniform(-0.06, 0.06, 3)
+            q = rng.normal(size=4)
+            r = rotation(q / np.linalg.norm(q))
+            a, b = rng.uniform(-0.08, 0.08, 3), rng.uniform(-0.08, 0.08, 3)
+            hit = False
+            for sv in np.linspace(0, 1, 41):
+                c = c0 + sv * (c1 - c0)
+                for tv in np.linspace(0, 1, 41):
+                    if np.all(np.abs(r.T @ (a + tv * (b - a) - c)) <= half):
+                        hit = True
+                        break
+                if hit:
+                    break
+            if hit:
+                self.assertTrue(S.segment_meets_slide(a, b, c0, c1, r, half))
+
     def test_block_in_then_move_is_fine(self):
         # both lit; the block goes in (both dark, neither moved), the right mirror is adjusted 10 mm, block out
         f = Film(ml=M1T, mr=M2T + [0.010, 0, 0, 0]).hold(10).go(10, b=BS).go(20, mr=M2T).go(20, b=B0).hold(30)
@@ -569,21 +790,44 @@ class Exploits(unittest.TestCase):
 
 
 class Arms(unittest.TestCase):
-    def test_arms_unavailable_let_go_taken_as_met_and_counted(self):
+    def test_arms_unavailable_are_not_let_go_and_counted(self):
+        # fail closed: a whole trial with unreadable arms can never reach 1.0
         r, t = play(procedure(), arms=False)
-        self.assertEqual(r.score, 1.0)
+        self.assertEqual(r.score, 0.0)
+        self.assertFalse(r.success)
         self.assertEqual(t.arms_unavailable, len(procedure().frames))
         self.assertFalse(r.details["arms_available"])
-        self.assertIsNone(r.details["grippers_let_go"])
+        self.assertFalse(r.details["grippers_let_go"])
+        self.assertFalse(S.grippers_released(None, {n: FINAL[n] for n in L.LOOSE}))
 
     def test_non_finite_arms_count_as_unavailable(self):
         t = Tracker(HZ)
+        settle(FINAL, t=t)
         bad = snap(left_tcp=(np.nan, 0.3, 0.9))
         r = t.update(FINAL, bad)
         self.assertEqual(t.arms_unavailable, 1)
-        self.assertEqual(r.score, 1.0)
-        t.update(FINAL, {"left": bad["left"]})  # one arm missing
+        self.assertEqual(r.score, 0.0)
+        self.assertEqual(r.details["let_go_steps"], 0)
+        r = t.update(FINAL, {"left": bad["left"]})  # one arm missing
         self.assertEqual(t.arms_unavailable, 2)
+        self.assertEqual(r.score, 0.0)
+        bad_open = snap(right_open=float("nan"))
+        self.assertEqual(t.update(FINAL, bad_open).score, 0.0)
+        self.assertEqual(t.arms_unavailable, 3)
+
+    def test_one_unreadable_step_restarts_the_let_go_hold(self):
+        t = Tracker(HZ)
+        settle(FINAL, t=t, n=RELEASE_STEPS + 5)
+        self.assertEqual(t.update(FINAL, None).score, 0.0)
+        for i in range(1, RELEASE_STEPS):
+            self.assertEqual(t.update(FINAL, snap()).score, 0.0, i)
+        self.assertEqual(t.update(FINAL, snap()).score, 1.0)
+
+    def test_an_uncomputable_gap_is_not_let_go(self):
+        a = snap()["left"]
+        broken = {n: SimpleNamespace(low=np.array([np.nan] * 3), high=np.array([np.nan] * 3)) for n in L.LOOSE}
+        self.assertFalse(S.let_go(a, broken))
+        self.assertFalse(S.let_go(a, {}))
 
     def test_offline_feed_reaches_the_scorer(self):
         a = snap(left_tcp=tcp_over(M1T), left_open=SHUT_M)
@@ -619,7 +863,9 @@ class States(unittest.TestCase):
         self.assertEqual(t.bad_steps, 4)
         self.assertEqual(t.steps, steps + 4)
         self.assertEqual(set(t.lit_ref), set(refs))
-        self.assertEqual(t.update(FINAL, snap()).score, 1.0)
+        self.assertEqual(t.release_streak, 0)  # a step that could not be judged restarts the let-go hold
+        self.assertEqual(t.update(FINAL, snap()).score, 0.0)
+        self.assertEqual(settle(FINAL, t=t).score, 1.0)
 
     def test_missing_object(self):
         objs = dict(FINAL)
@@ -708,6 +954,41 @@ class TaskFile(unittest.TestCase):
         meta = json.loads((HERE / "task.json").read_text())
         self.assertEqual(meta["instruction"], task.INSTRUCTION)
 
+    def test_instruction_states_the_goal_and_rules_not_the_method(self):
+        # review: the instruction must not say to put the block in first and take it out afterwards
+        task = _load_task()
+        meta = json.loads((HERE / "task.json").read_text())
+        for text in (task.INSTRUCTION.lower(), meta["title"].lower()):
+            for word in ("block", "first", "before", "afterward", "take it out", "remove", "once both", "order"):
+                self.assertNotIn(word, text)
+        low = task.INSTRUCTION.lower()
+        self.assertIn("never move a mirror the beam is on", low)  # the laser-safety rules stay
+        self.assertIn("never", low)
+        self.assertIn("leave the table", low)
+        self.assertLess(len(task.INSTRUCTION), 200)
+        self.assertIn("block", {o.name for o in task.OBJECTS})  # the block is still on the table
+
+    def test_task_json_numbers_match_the_scorer(self):
+        meta = json.loads((HERE / "task.json").read_text())
+        sc = meta["scoring"]
+        self.assertAlmostEqual(L.LET_GO_GAP, 0.020)
+        self.assertIn("more than 20 mm from both mirrors and the block, open or closed", sc)
+        self.assertAlmostEqual(L.FINGER_LEN, 0.038)
+        self.assertIn("from the tips to 38 mm up", sc)
+        self.assertAlmostEqual(L.RELEASE_HOLD_S, 0.5)
+        self.assertIn("let go on every control step of the last 0.5 s", sc)
+        self.assertIn("fails closed", sc)
+        self.assertNotIn("taken as met", sc)
+        self.assertAlmostEqual(L.CENTRE_TIGHT, 0.010)
+        self.assertAlmostEqual(L.LIT_MOVE, 0.003)
+        self.assertAlmostEqual(L.LIT_TURN_DEG, 1.0)
+        self.assertIn("more than 3 mm or turns more than 1 degree", sc)
+        self.assertIn("within 10 mm of its centre", sc)
+        # held credit never pays and a pass-through counts (the two fixes of the second revision pass)
+        self.assertIn("only with both grippers let go on every control step of the last 0.5 s (else 0", sc)
+        self.assertNotIn("or with a gripper not let go", sc)
+        self.assertIn("passes through the beam's current path between two steps", sc)
+
     def test_hooks(self):
         task = _load_task()
         rigstate.offline_reset()
@@ -715,7 +996,7 @@ class TaskFile(unittest.TestCase):
         self.assertFalse(task.success(scene()))
         self.assertEqual(task.score(scene()), 0.0)
         rigstate.offline_reset()
-        for _ in range(3):
+        for _ in range(RELEASE_STEPS):
             snap()
             ok = task.success(FINAL)
         self.assertTrue(ok)

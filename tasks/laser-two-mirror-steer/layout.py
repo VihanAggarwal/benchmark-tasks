@@ -84,15 +84,16 @@ STARTS = {"mirror_left": (MIRROR_L_X, MIRROR_L_Y), "mirror_right": (MIRROR_R_X, 
 FULL_GAP = 0.0939
 FINGER_THICK = 0.008  # finger pad thickness, outside the gap
 FINGER_HALF_WIDTH = 0.0135  # the pads are about 27 mm wide (across the closing axis) at the TCP's level
-FINGER_LEN = 0.038  # the fingers' zone runs from the tips this far back up the gripper
+FINGER_LEN = 0.038  # the fingers' zone runs from the tips this far back up the gripper (nothing below the tips)
 
 # Rule thresholds (scoring.py).
 CENTRE_TIGHT = 0.010  # beam spot to the detector's centre on its face (1.0)
 LIT_MOVE = 0.003  # a mirror the beam is on moving this far (m) ...
 LIT_TURN_DEG = 1.0  # ... or turning this much from its last place in the dark: moved in the live beam
 MAX_BOUNCES = 12  # more reflections than this: the beam is trapped between the mirrors (stopped on the table)
-GRIPPER_OPEN = 0.9  # rigstate opening (fingers 84.5 mm apart): a gripper this open holds nothing
-LET_GO_GAP = 0.010  # ... or, if less open, its finger zone at least this far from both mirrors and the block
+LET_GO_GAP = 0.020  # a gripper has let go when its finger zone is more than this from both mirrors and the block
+#                    (open or closed: an open hand resting on a part has not let go)
+RELEASE_HOLD_S = 0.5  # ... on every control step of the last 0.5 s (10 steps at 20 Hz); unreadable arms: not let go
 OFF_TABLE_DROP = 0.010  # an object whose lowest point is this far below the table top is off the table
 STILL_SPEED = 0.01  # m/s
 STILL_SPIN = 0.5  # rad/s
