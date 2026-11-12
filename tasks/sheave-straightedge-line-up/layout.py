@@ -31,7 +31,7 @@ PLATE_TOP = PLATE_SIZE[2]  # 0.012
 PLATE_X0, PLATE_X1 = PLATE_C[0] - PLATE_SIZE[0] / 2, PLATE_C[0] + PLATE_SIZE[0] / 2
 PLATE_Y0, PLATE_Y1 = PLATE_C[1] - PLATE_SIZE[1] / 2, PLATE_C[1] + PLATE_SIZE[1] / 2
 
-# -- the motor: one LOOSE mechkit compound (a bench model with a printed shell) ----------------------------------
+# -- the motor: one LOOSE mechkit compound (light, with a printed shell) ----------------------------------
 # Its frame: origin at the centre of the body's underside, local x along the body, the shaft out of local -x.
 MOTOR_MASS = 0.15  # spread evenly over its shapes' volume (as PhysX does): centre of mass 8.6 mm from the body's
 #                   centre toward the pulley, 40 mm up, so a push on its pulley face more than 45 mm above its underside
@@ -66,15 +66,24 @@ TIER_HALF_DEG = 1.0  # 0.5 (offset alone 5.06 mm)
 TIER_QUARTER_DEG = 2.0  # 0.25 (offset alone 10.1 mm)
 UPRIGHT_DEG = 2.0  # the body's up axis within this of vertical
 PLATE_Z_TOL = 0.002  # every bottom corner of the body within this of the plate's top
-Y_TOL = 0.010  # the motor's origin within this of y 0.140 (keeps the 290 mm centre distance that alpha uses)
+Y_TOL = 0.010  # the motor's origin within this of y 0.140 (keeps the 290 mm centre distance that alpha uses), at
+#                the end AND on every control step of the trial (a breach on any step scores 0 for the whole trial)
+# On every control step of the trial (a breach on any step, or a step whose motor state cannot be read, scores 0 for the
+# whole trial): the motor stays on its plate ...
+PLATE_CONTACT_TOL = 0.002  # ... the body's lowest bottom corner within this of the plate's top (lifting it more than
+#                            2 mm, or letting it drop off an edge, breaks it) ...
+#                            ... the centre of the body's underside over the plate's outline ...
+TIP_LIMIT_DEG = 10.0  # ... and the body's up axis within this of vertical (rocked onto an edge, never tipped up)
 HANDS_OFF = 0.060  # every TCP and pad-tip point at least this far from the motor's and the straightedge's boxes:
 #                   more than a fully open finger reaches (its outer face FULL_GAP / 2 + FINGER_THICK = 57 mm out)
 STILL_STEPS = 10  # 'at rest' is judged over the last 0.5 s (10 control steps) ...
 STILL_PATH = 0.002  # ... the face centre's path over that window shorter than this
 STILL_TURN_DEG = 0.5  # ... and the motor's heading turned less than this in all
 RESET_JUMP = 0.025  # an object moving this far in one control step (0.5 m/s) was put there by the simulator ...
-START_TOL = 0.045  # ... and, if every loose object is then within this of its start, a new episode began
-START_YAW_TOL_DEG = 10.0  # ... turned within this of its starting heading
+START_TOL = 0.005  # ... and, if every loose object is then within this of its start (the layout has no jitter), a
+#                   new episode began (tight, so that no solved or nearly solved state can pass for a reset and clear
+#                   the whole-trial rules: the motor in line is 12 mm from its start)
+START_YAW_TOL_DEG = 2.0  # ... turned within this of its starting heading
 
 # -- the grippers (yam_arena) ----------------------------------------------------------------------------------
 FULL_GAP = 0.0939  # pads 94 mm apart fully open; rigstate reports the opening 0 (closed) .. 1 (open)

@@ -1,10 +1,11 @@
 """On the station table, a belt drive with its belts off: a blower fixed in place in front of the right arm, its
 90 mm pulley's outer face toward the arms on the line x 23.0 cm, and, 290 mm to its left, a loose motor (a 150 g
-bench model with a 64 mm pulley) standing on a fixed steel base plate, turned 3 degrees and with its pulley face
+light motor with a printed shell and a 64 mm pulley) standing on a fixed steel base plate, turned 3 degrees and with its pulley face
 12 mm behind the line. A 480 mm aluminium straightedge stands on its edge on a felt strip in front of them. Lining
 up the pulleys as HVAC mechanics do: lay the straightedge across both pulleys' outer faces, flat on the blower's,
 and slide and turn the motor on its plate until its pulley's face is in the same plane; then let go of everything.
-The score is the total misalignment M (the motor's turn plus its offset over the centre distance, in degrees).
+The score is the total misalignment M (the motor's turn plus its offset over the centre distance, in degrees), and it
+is 0 for the whole trial if the motor ever leaves its plate (its lowest corner more than 2 mm above it) or its line.
 
 The blower and the motor are mechkit compounds (mechkit.py, next to this file: the blower fixed, the motor one loose
 rigid body with its shaft and pulley along its length); the scorer reads the motor's pose from mechkit and the arms
@@ -40,8 +41,9 @@ rigstate.install()  # reads both arms before every control step (False offline: 
 SCENE = "station"
 SCORE_OVER = "end"
 # Held for 1 s: the motor in line (M <= 0.5 deg), at rest, upright, on its plate and its line, with every TCP and
-# pad-tip point 60 mm or more from the motor and the straightedge (more than a fully open finger reaches), so the
-# hold starts only once both grippers have let go and risen.
+# pad-tip point 60 mm or more from the motor and the straightedge (more than a fully open finger reaches) on every step
+# of the last 0.5 s, and the motor never off its plate or its line on any step of the trial, so the hold starts only
+# once both grippers have let go and risen.
 SUCCESS_HOLD_S = 1.0
 
 INSTRUCTION = (
@@ -111,8 +113,9 @@ def _motor(objects, arms, advance: bool):
 def success(objects) -> bool:
     """The motor's pulley face in line with the blower's (M = |turn| + atan(|offset| / 290 mm) <= 0.5 deg), the
     motor at rest, upright, on its plate and within 10 mm of its line, every TCP and pad-tip point 60 mm or more from
-    the motor and the straightedge; held 1 s. This runs first every control step, so it also feeds the tracker (with
-    the arms rigstate read for this step)."""
+    the motor and the straightedge over the last 0.5 s, and the motor never off its plate or its line during the
+    trial; held 1 s. This runs first every control step, so it also feeds the tracker (with the arms rigstate read for
+    this step) and the whole-trial plate and line rules."""
     if _EPISODE["mechkit"] != mk.episode():  # mechkit counts resets too: a second, independent reset signal
         if _EPISODE["mechkit"] is not None:
             _TRACKER.reset()
@@ -147,7 +150,9 @@ def success(objects) -> bool:
 def score(objects) -> float:
     """0 unless the motor is at rest (its pulley face's path under 2 mm and its turn under 0.5 deg over the last
     0.5 s), upright within 2 deg, on its plate (every bottom corner inside it, within 2 mm of its top), within 10 mm
-    of its line (y 0.140) and both grippers 60 mm or more from the motor and the straightedge. Then 1.0 for
+    of its line (y 0.140), both grippers readable and 60 mm or more from the motor and the straightedge on every step
+    of the last 0.5 s, and on every step of the trial the motor stayed on its plate (lowest bottom corner within 2 mm
+    of its top, the underside's centre over it, tipped under 10 deg) and within 10 mm of its line. Then 1.0 for
     M <= 0.5 deg, 0.5 for M <= 1.0 deg, 0.25 for M <= 2.0 deg, else 0 (M = |turn| + atan(|offset| / 290 mm))."""
     arms = rigstate.arms()
     return _TRACKER.result(_motor(objects, arms, advance=False), objects["straightedge"], arms).score
@@ -161,14 +166,28 @@ BAR_GRIP = -(L.BAR_SIZE[0] - 0.008) / 2  # 12 mm across the straightedge's 20 mm
 BAR_OPEN = -0.025  # 50 mm round the straightedge: 15 mm clear each side, and the right arm's open fingers stay
 #                    33 mm from its own base (fully open, 13 mm) gripping 15 cm in front of it
 TRAVEL_Z = L.TOP + 0.150
-# Left arm, first: the motor. It grips the body's top 33 mm (the body's top is 92 mm up, the pad tips 59 mm), the
-# fingers closing across the body (yaw = the motor's 3 deg), lifts it 12 mm (the 150 g payload sags the arm about
-# 3 mm: J K^-1 J^T of the joint gains), turns it square and sets it down with its pulley face PROUD mm in front of
-# the line, so the straightedge can push it back onto the line (a straightedge only pushes).
-MOTOR_GRIP_Z = L.TOP + 0.072
-MOTOR_LIFT_Z = MOTOR_GRIP_Z + 0.012
-PROUD = 0.006
-PRE_X = L.ALIGNED_X - PROUD  # 0.312: the face 6 mm proud (x 0.224), square
+# Left arm, first: the motor, which never leaves its plate. It grips the body at its centre of mass's height (the TCP
+# 60 mm up: the 22 mm pads on the body 47 to 69 mm up, their tips 35 mm above the plate's top; the finger carriages,
+# 57 mm above the TCP, 25 mm above the body's 92 mm top), the fingers closing across the body (yaw = the motor's
+# 3 deg). Then, at the SAME height (no lift: the arm holds the TCP where it gripped the motor resting on the plate;
+# lifting it at all would need the command about 3 mm higher just to carry its weight, by the 3.1 mm sag the GPU
+# measured with this 150 g motor hanging from this arm), it slides the motor along the plate toward the arms while
+# turning it square, and eases off before letting go. The arm is soft in x with its wrist free (J K^-1 J^T of the joint
+# gains: about 150 N/m), so the plate's sliding friction (1.0 x 1.47 N) leaves the motor about 11 mm behind the
+# command, rocked about 2.6 deg onto its leading edge, which stays pressed on the plate (by a quasi-static model of the
+# arm, the motor and the plate; 1.3 deg for arms twice as stiff, 3.3 deg at the static friction): the slide is
+# commanded DRAG_LAG past PRE_X. The ease-off then moves the command back to PRE_X, so the arm's pull drops below the
+# 1.77 N static friction (the motor stays where it stopped, about 2 mm nearer the arms than PRE_X, and settles flat)
+# before the fingers open; on a stiffer arm the motor follows the command back to PRE_X. The motor ends with its pulley
+# face PROUD or more in front of the line (a straightedge only pushes): about 10 mm for the expected lag (the previous
+# demo's press, unchanged, lined the motor up from 8.7 mm proud on the GPU), 7 mm for arms 0.8 times as stiff, and
+# about on the line for arms half as stiff. At the expected stop its corners are all on the plate.
+MOTOR_GRIP_Z = L.TOP + 0.060
+DRAG_Z = MOTOR_GRIP_Z  # the slide keeps the grip height: the motor is never lifted
+PROUD = 0.008
+DRAG_LAG = 0.013
+PRE_X = L.ALIGNED_X - PROUD  # 0.310: where the motor ends at the least, its face 8 mm proud (x 0.222), square
+DRAG_X = PRE_X - DRAG_LAG  # 0.297: the slide's command (the motor about 11 mm behind it: x 0.308, 10 mm proud)
 # Both arms, then: the straightedge. Each grips it with the fingers closing across its 20 mm (yaw -pi/2 left, +pi/2
 # right), the TCP 3 mm above its centre: the right arm 35 mm in from its right end (y -0.250), outside the blower
 # pulley's outer rim (y -0.195), the left at y 0.000 between the pulleys, so the bar can lie flat on the blower pulley
@@ -203,16 +222,15 @@ def _motor_pre_place() -> list[Waypoint]:
     x0, y = L.MOTOR_START[0], L.MOTOR_Y
     return [
         Waypoint(3.0, (x0, y, TRAVEL_Z), OPEN, "over the motor", yaw0),
-        Waypoint(1.0, (x0, y, L.TOP + 0.100), OPEN, "down toward the motor", yaw0),
+        Waypoint(1.0, (x0, y, L.TOP + 0.090), OPEN, "down toward the motor", yaw0),
         Waypoint(1.5, (x0, y, MOTOR_GRIP_Z), OPEN, "down round its body, slowly", yaw0),
         Waypoint(0.6, (x0, y, MOTOR_GRIP_Z), OPEN, "settle", yaw0),
         Waypoint(1.5, (x0, y, MOTOR_GRIP_Z), MOTOR_GRIP, "grip the motor's body", yaw0),
         Waypoint(0.5, (x0, y, MOTOR_GRIP_Z), MOTOR_GRIP, "settle the grip", yaw0),
-        Waypoint(1.0, (x0, y, MOTOR_LIFT_Z), MOTOR_GRIP, "lift it 12 mm off the plate", yaw0),
-        Waypoint(3.0, (PRE_X, y, MOTOR_LIFT_Z), MOTOR_GRIP, "turn it square, its face 6 mm proud of the line", 0.0),
-        Waypoint(1.5, (PRE_X, y, MOTOR_GRIP_Z), MOTOR_GRIP, "set it down on the plate, slowly", 0.0),
-        Waypoint(0.6, (PRE_X, y, MOTOR_GRIP_Z), MOTOR_GRIP, "settle", 0.0),
-        Waypoint(1.5, (PRE_X, y, MOTOR_GRIP_Z), OPEN, "let go of the motor", 0.0),
+        Waypoint(4.5, (DRAG_X, y, DRAG_Z), MOTOR_GRIP, "slide it on the plate toward the line, turning it square", 0.0),
+        Waypoint(1.0, (PRE_X, y, DRAG_Z), MOTOR_GRIP, "ease off the pull, still on the plate", 0.0),
+        Waypoint(0.6, (PRE_X, y, DRAG_Z), MOTOR_GRIP, "settle", 0.0),
+        Waypoint(1.5, (PRE_X, y, DRAG_Z), OPEN, "let go of the motor", 0.0),
         Waypoint(1.5, (PRE_X, y, TRAVEL_Z), OPEN, "up, clear of it", 0.0),
     ]
 
@@ -249,8 +267,8 @@ def _over_bar(side: str, duration: float) -> Waypoint:
 
 
 def _left() -> list[Waypoint]:
-    """Left arm: set the motor down square with its face 6 mm proud of the line, then grip the straightedge between
-    the pulleys and press it with the right arm."""
+    """Left arm: slide the motor along its plate (never lifting it) to square with its face 8 to 10 mm proud of the
+    line, then grip the straightedge between the pulleys and press it with the right arm."""
     return _motor_pre_place() + [_over_bar("left", 3.0)] + _bar("left")
 
 

@@ -258,11 +258,12 @@ class Gates(unittest.TestCase):
 
     def test_on_plate_height(self):
         self.assertEqual(score_of(motor(dz=0.0019)).score, 1.0)
-        res = score_of(motor(dz=0.0021))
+        res = score_of(motor(dz=0.0021))  # held 2.1 mm up the whole time: off at the end and on every step
         self.assertEqual(res.score, 0.0)
-        self.assertEqual(res.details["failed_gates"], ["on_plate"])
+        self.assertEqual(res.details["failed_gates"], ["on_plate", "stayed_on_plate"])
+        self.assertEqual(res.details["plate_breach"]["why"], "lifted off the plate")
         res = score_of(motor(dz=-0.0021))  # sunk into the plate (a blow-up)
-        self.assertEqual(res.details["failed_gates"], ["on_plate"])
+        self.assertEqual(res.details["failed_gates"], ["on_plate", "stayed_on_plate"])
 
     def test_on_line(self):
         self.assertEqual(score_of(motor(dy=0.0099)).score, 1.0)
@@ -270,7 +271,7 @@ class Gates(unittest.TestCase):
         for dy in (0.0101, -0.0101):
             res = score_of(motor(dy=dy))
             self.assertEqual(res.score, 0.0)
-            self.assertEqual(res.details["failed_gates"], ["on_line"])
+            self.assertEqual(res.details["failed_gates"], ["on_line", "stayed_on_line"])
 
     def test_hands_off_each_point_each_object(self):
         m, b = motor(), bar()
@@ -296,18 +297,51 @@ class Gates(unittest.TestCase):
                                 opening=1.0)
             self.assertEqual(score_of(m, b, arms(**{side: a})).score, 0.0, side)
 
-    def test_arms_unavailable_count_as_hands_off(self):
+    def test_unreadable_arms_are_never_hands_off(self):
+        # fail closed: an arm that cannot be read is not released, so a perfect motor scores 0
         tr = Tracker()
         for _ in range(WIN):
             res = tr.update(motor(), bar(), None)
-        self.assertEqual(res.score, 1.0)
+        self.assertEqual(res.score, 0.0)
+        self.assertEqual(res.details["failed_gates"], ["hands_off"])
         self.assertEqual(tr.arms_unavailable, WIN)
         self.assertFalse(res.details["arms_available"])
-        bad = {"left": arm((math.nan, 0, 1)), "right": arm(READY["right"])}
+        for bad in ({"left": arm((math.nan, 0, 1)), "right": arm(READY["right"])},
+                    {"left": arm(READY["left"])},  # a side missing
+                    {"left": arm(READY["left"]), "right": arm(READY["right"], opening=math.inf)},
+                    {"left": SimpleNamespace(tcp=READY["left"], tips=[0, 0], opening=1.0),
+                     "right": arm(READY["right"])},
+                    "not arms"):
+            tr = Tracker()
+            res = settle(tr, motor(), bar(), bad)
+            self.assertEqual(res.score, 0.0, bad)
+            self.assertEqual(res.details["failed_gates"], ["hands_off"], bad)
+            self.assertEqual(tr.arms_unavailable, WIN)
+        # readable again: 0 until a full 0.5 s window of readable, clear steps has passed
         tr = Tracker()
-        self.assertEqual(settle(tr, motor(), bar(), bad).score, 1.0)
-        self.assertEqual(tr.arms_unavailable, WIN)
-        self.assertEqual(settle(Tracker(), motor(), bar(), {"left": arm(READY["left"])}).score, 1.0)
+        for _ in range(30):
+            tr.update(motor(), bar(), None)
+        for i in range(WIN):
+            res = tr.update(motor(), bar(), arms())
+            self.assertEqual(res.score, 1.0 if i == WIN - 1 else 0.0, i)
+
+    def test_hands_off_holds_over_the_last_half_second(self):
+        # a hand on the motor on any one step of the last 0.5 s (10 steps back) fails; 11 steps back does not
+        m, b = motor(), bar()
+        o = S.motor_pose(m)[1]
+        hand = arms(left=arm((o[0], o[1], L.TOP + 0.060), 0.70))
+        for back, want in ((WIN - 1, 0.0), (WIN, 1.0)):
+            tr = Tracker()
+            settle(tr, m, b, arms(), n=20)
+            tr.update(m, b, hand)
+            res = settle(tr, m, b, arms(), n=back)
+            self.assertEqual(res.score, want, back)
+        # one unreadable step inside the window fails too
+        tr = Tracker()
+        settle(tr, m, b, arms(), n=20)
+        tr.update(m, b, None)
+        self.assertEqual(settle(tr, m, b, arms(), n=WIN - 1).score, 0.0)
+        self.assertEqual(tr.update(m, b, arms()).score, 1.0)
 
 
 # -- every listed score, reached by a trial -------------------------------------------------------------------------
@@ -448,6 +482,147 @@ class Exploits(unittest.TestCase):
         self.assertEqual(score_of(start_motor(), b).score, 0.0)
 
 
+# -- the whole-trial rules: on its plate and on its line on every step --------------------------------------------
+def rocked(o_xy, theta, beta):
+    """The motor turned ``theta`` degrees, rocked ``beta`` degrees onto its leading (pulley-end) bottom edge, that edge
+    on the plate, the centre of its underside over (o_xy) before rocking."""
+    q = qmul(about("z", theta), about("y", -beta))  # top toward local -x: the trailing edge rises
+    r = S.rotation(q)
+    t = math.radians(theta)
+    edge = np.array([o_xy[0], o_xy[1], PLATE_Z]) + np.array([-L.BODY_HALF[0] * math.cos(t),
+                                                           -L.BODY_HALF[0] * math.sin(t), 0.0])
+    o = edge - r @ np.array([-L.BODY_HALF[0], 0.0, 0.0])
+    return motor_at(o, q)
+
+
+class WholeTrial(unittest.TestCase):
+    """Review: 'Track the motor's plate contact and centre-distance limits throughout the trial, not only at the end,
+    and prevent runs that violate those limits from receiving credit.'"""
+
+    def finish(self, tr, m=None, n=30):
+        """The hands let go and stay clear, the motor in line: what the end state alone would score."""
+        return settle(tr, motor() if m is None else m, bar(), arms(), n=n)
+
+    def path(self, tr, poses, hand_z=L.TOP + 0.060):
+        """Feed motor states with the left gripper on the body (as a slide or a carry would have it)."""
+        for m in poses:
+            o = S.motor_pose(m)[1]
+            res = tr.update(m, bar(), arms(left=arm((o[0], o[1], hand_z + o[2] - PLATE_Z), 0.70)))
+            self.assertEqual(res.score, 0.0)  # held: never scores
+        return res
+
+    def test_the_old_demo_lift_scores_zero(self):
+        # gripped, lifted 12 mm, carried into line, set down, let go: in line at the end, 0 for the trial
+        m0, m1 = start_motor(), motor()
+        o0, o1 = S.motor_pose(m0)[1], S.motor_pose(m1)[1]
+        poses = [motor_at(o0 + np.array([0, 0, 0.012 * i / 10]), m0.quat_xyzw) for i in range(1, 11)]
+        poses += [motor_at(o0 + (o1 - o0) * i / 20 + np.array([0, 0, 0.012]),
+                           about("z", L.MOTOR_YAW0_DEG * (1 - i / 20))) for i in range(1, 21)]
+        poses += [motor_at(o1 + np.array([0, 0, 0.012 * (1 - i / 10)]), m1.quat_xyzw) for i in range(1, 11)]
+        tr = Tracker()
+        self.path(tr, poses)
+        res = self.finish(tr)
+        self.assertEqual(res.score, 0.0)
+        self.assertEqual(res.details["failed_gates"], ["stayed_on_plate"])
+        self.assertEqual(res.details["plate_breach"]["why"], "lifted off the plate")
+        self.assertEqual(res.details["plate_breach"]["step"], 2)  # 2.4 mm up on the second step (1.2 mm a step)
+        self.assertEqual(res.details["score_tier"], 1.0)  # the end state alone would have scored 1.0
+        self.assertTrue(res.details["stayed_on_line"])
+        # the same path slid along the plate (never lifted) scores 1.0
+        tr = Tracker()
+        self.path(tr, [motor_at(o0 + (o1 - o0) * i / 20, about("z", L.MOTOR_YAW0_DEG * (1 - i / 20)))
+                       for i in range(1, 21)])
+        res = self.finish(tr)
+        self.assertEqual(res.score, 1.0)
+        self.assertEqual(res.details["max_lowest_corner_mm"], 0.0)
+
+    def test_lift_boundary_on_any_one_step(self):
+        for dz, want in ((0.0019, 1.0), (0.0021, 0.0), (-0.0021, 0.0)):
+            tr = Tracker()
+            self.finish(tr, n=15)
+            tr.update(motor(dz=dz), bar(), arms())  # one step only
+            res = self.finish(tr)
+            self.assertEqual(res.score, want, dz)
+            if want == 0.0:
+                self.assertEqual(res.details["failed_gates"], ["stayed_on_plate"])
+                self.assertEqual(res.details["plate_breach"]["step"], 16)
+        # a lift as short as one step anywhere in a long trial latches until the next reset
+        tr = Tracker()
+        self.finish(tr, n=5)
+        tr.update(motor(dz=0.003), bar(), arms())
+        self.assertEqual(self.finish(tr, n=2000).score, 0.0)
+        tr.reset()
+        self.assertEqual(self.finish(tr).score, 1.0)
+
+    def test_rocking_onto_an_edge_is_still_on_the_plate(self):
+        # the leading edge stays on the plate: rocked up to 10 deg is still on it; 10.5 deg is tipped up
+        for beta, want in ((2.6, 1.0), (9.9, 1.0), (10.5, 0.0)):
+            m = rocked(S.motor_pose(motor(e=-0.010))[1][:2], 0.0, beta)
+            self.assertAlmostEqual(S.lowest_corner(m), 0.0, places=9)
+            self.assertAlmostEqual(S.tilt_deg(m), beta, places=6)
+            tr = Tracker()
+            tr.update(m, bar(), arms())
+            res = self.finish(tr)
+            self.assertEqual(res.score, want, beta)
+            if want == 0.0:
+                self.assertEqual(res.details["plate_breach"]["why"], "tipped up")
+
+    def test_off_the_plate_mid_trial(self):
+        # the underside's centre past the plate's front edge on one step (pulled off it), then pushed back: 0
+        _, o = S.motor_pose(motor())
+        off = motor_at((L.PLATE_X0 - 0.001, o[1], PLATE_Z), about("z", 0.0))
+        on = motor_at((L.PLATE_X0 + 0.001, o[1], PLATE_Z), about("z", 0.0))
+        self.assertTrue(S.over_plate(on))
+        self.assertFalse(S.over_plate(off))
+        for m, want in ((on, 1.0), (off, 0.0)):
+            tr = Tracker()
+            tr.update(m, bar(), arms())
+            res = self.finish(tr)
+            self.assertEqual(res.score, want)
+        self.assertEqual(res.details["plate_breach"]["why"], "off the plate's outline")
+        # off its edge onto the table (its lowest corner 12 mm below the plate's top)
+        tr = Tracker()
+        tr.update(motor_at((0.200, 0.140, L.TOP), about("z", 0.0)), bar(), arms())
+        res = self.finish(tr)
+        self.assertEqual(res.score, 0.0)
+        self.assertEqual(res.details["plate_breach"]["why"], "below the plate's top (off an edge or sunk)")
+
+    def test_centre_distance_on_every_step(self):
+        # slid along y (toward or away from the blower: the belt's centre distance) on one step, then back: 0
+        for dy, want in ((0.0099, 1.0), (-0.0099, 1.0), (0.0101, 0.0), (-0.0101, 0.0), (0.030, 0.0)):
+            tr = Tracker()
+            self.finish(tr, n=12)
+            tr.update(motor(dy=dy), bar(), arms())
+            res = self.finish(tr)
+            self.assertEqual(res.score, want, dy)
+            if want == 0.0:
+                self.assertEqual(res.details["failed_gates"], ["stayed_on_line"])
+                self.assertEqual(res.details["line_breach"]["step"], 13)
+            self.assertAlmostEqual(res.details["max_y_off_mm"], abs(dy) * 1000, places=1)
+
+    def test_both_rules_report_their_first_breach(self):
+        tr = Tracker()
+        self.finish(tr, n=3)
+        tr.update(motor(dy=0.012), bar(), arms())
+        tr.update(motor(dz=0.010), bar(), arms())
+        tr.update(motor(dy=-0.020, dz=0.020), bar(), arms())
+        res = self.finish(tr)
+        self.assertEqual(res.details["failed_gates"], ["stayed_on_plate", "stayed_on_line"])
+        self.assertEqual(res.details["line_breach"]["step"], 4)
+        self.assertAlmostEqual(res.details["line_breach"]["y_off_mm"], 12.0)
+        self.assertEqual(res.details["plate_breach"]["step"], 5)
+        self.assertAlmostEqual(res.details["plate_breach"]["lowest_corner_mm"], 10.0)
+
+    def test_a_teleport_back_to_the_start_clears_the_latches(self):
+        tr = Tracker()
+        self.finish(tr, n=5)
+        tr.update(motor(dz=0.020), bar(), arms())
+        self.assertIsNotNone(tr.plate_breach)
+        tr.update(start_motor(), start_bar(), arms())  # the simulator put everything back: a new trial
+        self.assertIsNone(tr.plate_breach)
+        self.assertEqual(tr.steps, 1)
+
+
 # -- robustness ------------------------------------------------------------------------------------------------------
 class Robustness(unittest.TestCase):
     def test_blow_up_states_score_zero_and_leave_the_tracker_alone(self):
@@ -475,7 +650,23 @@ class Robustness(unittest.TestCase):
         self.assertEqual(tr.bad_steps, 2 * len(bads))
         self.assertEqual(list(tr.window), window)
         self.assertIs(tr.prev, prev)
-        self.assertEqual(tr.update(motor(), bar(), arms()).score, 1.0)  # the window survived
+        # an unreadable motor breaks both whole-trial rules (they cannot be verified): 0 for the rest of the trial
+        res = settle(tr, motor(), bar(), arms(), n=40)
+        self.assertEqual(res.score, 0.0)
+        self.assertEqual(res.details["failed_gates"], ["stayed_on_plate", "stayed_on_line"])
+        self.assertEqual(res.details["plate_breach"]["why"], "motor state unreadable")
+
+    def test_a_bad_straightedge_state_is_not_hands_off_but_not_latched(self):
+        tr = Tracker()
+        settle(tr, motor(), bar(), arms())
+        res = tr.update(motor(), SimpleNamespace(pos=[0, 0, math.nan]), arms())
+        self.assertEqual(res.score, 0.0)
+        self.assertEqual(tr.bad_steps, 1)
+        self.assertIsNone(tr.plate_breach)
+        self.assertIsNone(tr.line_breach)
+        res = settle(tr, motor(), bar(), arms(), n=WIN - 1)
+        self.assertEqual(res.score, 0.0)  # the bad step is still in the hands-off window
+        self.assertEqual(tr.update(motor(), bar(), arms()).score, 1.0)
 
     def test_score_is_idempotent(self):
         tr = Tracker()
@@ -507,13 +698,28 @@ class Robustness(unittest.TestCase):
         self.assertEqual(tr.steps, 1)  # a fresh trial: the window starts over
         self.assertEqual(len(tr.window), 1)
 
-    def test_teleport_to_a_jittered_start_resets(self):
+    def test_a_jump_near_but_not_at_the_start_is_not_a_reset(self):
+        # within 5 mm and 2 deg of the start: a reset; 6 mm or 3 deg off: not (the solved motor is 12 mm from it, so
+        # flinging a part cannot clear the whole-trial rules)
+        for dx, yaw, want in ((0.004, L.MOTOR_YAW0_DEG + 1.5, 1), (0.006, L.MOTOR_YAW0_DEG, 31),
+                              (0.0, L.MOTOR_YAW0_DEG + 3.0, 31)):
+            tr = Tracker()
+            settle(tr, motor(), bar(), arms(), n=30)
+            m = motor_at((L.MOTOR_START[0] + dx, L.MOTOR_START[1], PLATE_Z), about("z", yaw))
+            tr.update(m, start_bar(), arms())
+            self.assertEqual(tr.steps, want, (dx, yaw))
         tr = Tracker()
         settle(tr, motor(), bar(), arms(), n=30)
-        m = motor_at((L.MOTOR_START[0] + 0.02, L.MOTOR_START[1] - 0.02, PLATE_Z), about("z", 7.0))
-        b = bar(L.BAR_START[0] - 0.025, L.BAR_START[1] + 0.03, L.BAR_START[2], yaw=4.0)
-        tr.update(m, b, arms())
-        self.assertEqual(tr.steps, 1)
+        tr.update(start_motor(), bar(L.BAR_START[0] - 0.006, L.BAR_START[1], L.BAR_START[2]), arms())
+        self.assertEqual(tr.steps, 31)
+        # a breach, then a jump into the solved state: still a breach
+        tr = Tracker()
+        settle(tr, start_motor(), start_bar(), arms(), n=5)
+        tr.update(motor_at((L.MOTOR_START[0], L.MOTOR_START[1], PLATE_Z + 0.010), about("z", 3.0)), start_bar(),
+                  arms())
+        res = settle(tr, motor(), bar(x=0.19), arms(), n=30)
+        self.assertEqual(res.score, 0.0)
+        self.assertEqual(res.details["failed_gates"], ["stayed_on_plate"])
 
     def test_gradual_return_does_not_reset(self):
         tr = Tracker()
@@ -817,8 +1023,31 @@ class TaskFile(unittest.TestCase):
         self.assertGreater(task.BAR_GRIP_Y["left"] - 0.020, L.INNER_RIM_Y)
         self.assertLess(task.BAR_GRIP_Y["left"] + 0.033, L.MOTOR_Y - L.BODY_HALF[1])
         self.assertGreaterEqual(task.BAR_GRIP_Y["left"] - task.BAR_GRIP_Y["right"], 0.20)
-        # the motor is set down proud of the line: a straightedge can only push
+        # the motor ends proud of the line (a straightedge can only push): the slide is commanded DRAG_LAG past that
+        # point, then eased back to it before the fingers open
         self.assertLess(task.PRE_X, L.ALIGNED_X)
+        self.assertAlmostEqual(task.DRAG_X, task.PRE_X - task.DRAG_LAG)
+        # review: the motor is never lifted. Every left-arm target from the grip to the release is at the grip height
+        # (the arm holds the TCP where it gripped the motor resting on the plate), the slide turns it square
+        labels = [w.label for w in plan["left"]]
+        g0, g1 = labels.index("grip the motor's body"), labels.index("let go of the motor")
+        on_motor = plan["left"][g0:g1 + 1]
+        self.assertTrue(all(abs(w.pos[2] - task.MOTOR_GRIP_Z) < 1e-12 for w in on_motor))
+        self.assertEqual(task.DRAG_Z, task.MOTOR_GRIP_Z)
+        self.assertNotIn("lift", " ".join(labels[g0:g1 + 1]))
+        slide = [w for w in on_motor if w.label.startswith("slide")]
+        self.assertEqual(len(slide), 1)
+        self.assertEqual(slide[0].yaw, 0.0)
+        self.assertEqual(on_motor[0].yaw, L.MOTOR_YAW0)
+        self.assertLessEqual(abs(task.DRAG_X - L.MOTOR_START[0]) / slide[0].duration, 0.008)  # <= 8 mm/s average
+        # the 22 mm pads (9 mm behind the TCP to 13 mm past it) on the body, their tips well clear of the plate; the
+        # finger carriages (57 mm above the TCP) clear of the body's top
+        grip_h = task.MOTOR_GRIP_Z - L.TOP
+        self.assertGreaterEqual(grip_h - 0.013 - L.PLATE_TOP, 0.030)
+        self.assertLessEqual(grip_h + 0.009, L.PLATE_TOP + L.MOTOR_BODY[2])
+        self.assertGreaterEqual(grip_h + 0.057 - (L.PLATE_TOP + L.MOTOR_BODY[2]), 0.020)
+        # the motor's centre stays over the plate at the slide's command (the whole-trial rule)
+        self.assertGreater(task.DRAG_X, L.PLATE_X0 + 0.020)
         # every open/close takes at least 1.5 s after a settle of at least 0.5 s; every slow descent takes 1.5 s
         for wps in (plan["left"], plan["right"]):
             for a, b in zip(wps, wps[1:]):
@@ -840,7 +1069,8 @@ class TaskFile(unittest.TestCase):
         rise = [w for _, w in left if w.label.startswith("straight up")]
         t_clear = next(t for t in np.arange(end - rise[0].duration, end, 0.01)
                        if task.demo_target("left", t)[2] - 0.013 - (L.TOP + L.BAR_SIZE[2]) >= L.HANDS_OFF)
-        self.assertLess(t_clear + task.SUCCESS_HOLD_S, end + 3.0 - 1.0)
+        # hands off over 0.5 s, then held 1 s, before the scripted policy stops (with 1 s to spare)
+        self.assertLess(t_clear + L.STILL_STEPS / HZ + task.SUCCESS_HOLD_S, end + 3.0 - 1.0)
 
     def test_demo_target(self):
         task = self.task
@@ -867,7 +1097,8 @@ class TaskFile(unittest.TestCase):
         self.assertEqual(len(given), 2)
         self.assertTrue(all(g == self.task.INSTRUCTION for g in given))
         self.assertIn("demo: 1.0", meta["scores"])
-        self.assertNotIn("media", meta)
+        if "media" in meta:  # the board's media id, once uploaded
+            self.assertRegex(meta["media"], r"^M-[A-Z0-9]+$")
         for key in ("title", "category", "keywords", "instruction", "context", "setup", "scoring", "run_limit",
                     "fidelity", "reset_notes"):
             self.assertTrue(meta[key], key)
@@ -883,8 +1114,17 @@ class TaskFile(unittest.TestCase):
             self.assertLessEqual(len(meta[key]), n, key)
         # the numbers the text gives
         for needle in ("0.5 degree", "1.0 degree", "2.0 degrees", "290 mm", "60 mm", "10 mm", "Possible scores: 0, "
-                       "0.25, 0.5 and 1.0"):
+                       "0.25, 0.5 and 1.0", "every control step", "within 2 mm of the plate's top", "10 degrees",
+                       "last 0.5 s", "cannot be read"):
             self.assertIn(needle, meta["scoring"], needle)
+        # the numbers in the text are the code's
+        self.assertAlmostEqual(L.PLATE_CONTACT_TOL, 0.002)
+        self.assertAlmostEqual(L.TIP_LIMIT_DEG, 10.0)
+        self.assertAlmostEqual(L.Y_TOL, 0.010)
+        self.assertAlmostEqual(L.HANDS_OFF, 0.060)
+        self.assertEqual(L.STILL_STEPS / HZ, 0.5)
+        self.assertNotIn("counts as met", meta["scoring"])  # unreadable arms never count as released
+        self.assertNotIn("counts as met", readme)
 
 
 def _checker():
