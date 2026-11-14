@@ -44,9 +44,11 @@ UNIT_MASS = 0.20
 UNIT_X, UNIT_Y = 0.22, 0.29  # its nearer end at y +0.19, about 2 cm past the right arm's top-down reach
 
 # Rule thresholds (scoring.py).
-SILL_TOUCH_Z = MARK_TOP + 0.001  # 'touched the sill': a corner of the unit inside the channel below this height
+SILL_TOUCH_GAP = 0.0005  # 'touched the sill': a part of the unit inside the channel this close, or closer, to the
+#                          surface under it (a mark's top or the sill's top); contact at the scorer's resolution
 CHANNEL_SLACK = 0.001  # 'in the channel': every corner of the unit within the channel's inner outline + this
-TOUCH_SLACK = 0.002  # a corner within the channel's outline + this counts for 'touched the sill'
+TOUCH_SLACK = 0.002  # a point of the unit within the channel's outline + this counts for 'touched the sill'
+TOUCH_STEP = 0.005  # points are sampled along the unit's twelve edges at most this far apart
 STAND_TILT_DEG = 3.0  # 'standing': the unit's height axis within this of vertical
 DOWN_TILT_DEG = 30.0  # more than this at the end: lying down (or stood on end), 0
 ON_BLOCK_GAP = 0.001  # 'resting on a block': the unit's underside within this of the block's top, above or below

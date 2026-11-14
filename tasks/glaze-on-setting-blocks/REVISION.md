@@ -1,4 +1,85 @@
-# Revision for review TK-GMU4YS (2026-11-12)
+# Second review (2026-11-14)
+
+Review of TK-WB6CLU, "Not accepted" (not final, one more revision allowed). The reviewer's text, verbatim:
+
+> Flags: Prior review feedback for the revision was not supplied; verify that the revision addresses it.
+>
+> Importance (not met): Setting blocks in a double-glazed unit is specialist work rather than a scenario most people know firsthand, but window repair is regular work for general maintenance and repair workers.
+>
+> Scoring (not met): A chalk print detects contact, not every approach within the scored 2 mm clearance, and the hidden channel makes that clearance difficult to verify throughout a real trial.
+>
+> What to change: Use Impact on jobs and explain how placing replacement glazing units fits the regular work of general maintenance and repair workers. Make the real and simulated sill-contact rule agree: for example, score actual contact in both and use the chalk transfer to check it, or provide a practical way to detect the specified 2 mm clearance throughout the trial.
+
+## Category and context
+
+Done. The category is now "Impact on jobs". The context now says how placing a replacement glazing unit fits the
+regular work of general maintenance and repair workers (about 1.6 million in the US, BLS occupation 49-9071): they
+keep buildings in repair, and replacing a broken or misted glazed unit in a window or door is part of that work. The
+README's opening paragraph and the keywords are brought in line with it.
+
+## One sill rule in simulation and on the bench
+
+Done. The scorer used to zero a trial when a corner of the glass came within 2 mm of the sill; the bench check, a
+chalk print, only shows contact. Both now use contact:
+
+- Simulation: the unit touched the sill when some part of it inside the channel's outline (2 mm slack) is 0.5 mm or
+  less above the surface under it, which is a mark's top over a mark and the sill's top elsewhere. 0.5 mm is the
+  scorer's resolution for contact (`SILL_TOUCH_GAP` in `layout.py`). The scorer tests the unit's eight corners and
+  points every 5 mm or finer along its twelve edges (`touches_sill` in `scoring.py`), not corners alone: a unit
+  lowered with no blocks rests on the two 1 mm marks along its bottom edges while its corners hang 1 mm above the
+  bare sill, and that must still be a touch.
+- Bench: blue marking chalk on all four edges of the unit (the marks are white, so a blue print shows); a print on the sill or on a white mark shows a touch, and a near miss leaves
+  none. No clearance has to be measured through the hidden channel. The `scoring` field and the README table say
+  the same thing in the same words.
+- Nothing changes for the demo, which stays about 9 mm above the sill, and the scripted demo still predicts 1.0.
+
+## Tests added or changed (`tests/test_scoring.py`)
+
+- A level unit resting on the two marks with no blocks is a touch (its corners are 1 mm above the bare sill).
+- A bottom edge 0.4 mm above a mark's top is a touch; 0.6 mm is not.
+- A tilted unit whose low corner reaches the sill is a touch; 0.4 mm above the bare sill is a touch, 0.6 mm and 1.0 mm
+  are not (near misses). A level unit cannot hover over bare sill only, because its bottom edges always pass over
+  the marks, so the bare-sill cases use a unit tipped 3 degrees with its low end clear of the marks.
+- A unit on the blocks is not a touch; a unit on the table outside the frame is not.
+- Edge samples are at most 5 mm apart.
+- The momentary-dip test now rocks the unit down to the sill (it used to stop 1 mm short, which the 2 mm rule counted).
+- The task.json test pins the new category and the contact wording, and asserts that the `scoring` field no longer
+  contains "less than 2 mm above the sill" or "within 2 mm of the sill".
+
+## Later corrections to the second revision (independent check)
+
+- Contact at a mark's outline: the scorer missed a touch when the unit's lowest point over a mark lay on the mark's
+  outline between two edge samples (up to 1 mm of error). `sill_gaps` now also takes, exactly, the points where each
+  of the unit's twelve edges crosses the vertical planes of each mark's four sides (inside that side) and the unit's
+  lowest point straight above each mark corner (gap = z minus the mark's top), besides the corner and edge samples.
+  Tests added: the pose pos (0.3, 0.0045, 0.840757), quaternion (0.241922, 0, 0, 0.970296) (xyzw), true gap 0.038 mm,
+  is a touch and the same pose raised 0.7 mm is not; a 2 degree roll about the long axis with the bottom edge at zero
+  gap on a mark's edge is a touch.
+- A step on which the unit's state is valid but a block's is not now still latches a touch before it is scored 0
+  (test added).
+- Chalk: blue marking chalk on all four edges of the unit, not the bottom edge, so a print shows on the white marks
+  and on the sill from whichever edge touched.
+- Bench reading: after the end photo and video the unit is lifted straight out and the channel photographed from above;
+  block-to-mark distance, block turn and any chalk print on the sill or a mark are read on that photo.
+- Bench "resting": the unit stands on its own, let go and still for 1 s, with no chalk print on the sill or marks, so
+  only the blocks carry it. This replaces the 1 mm feeler gauge; the simulated rule (within 1 mm of the block's top)
+  is unchanged.
+- Context, fidelity and instruction: the context says what the worker does on the job and that this task is the last
+  step; the fidelity says the frame is cut down to its bottom rail with both stops fixed, so the unit goes in from
+  above; the instruction is "Stand the glass unit centred in the frame on the two black setting blocks, set on the
+  white marks, and let go." (110 characters; the never-touch rule stays in the context and the scoring). "A unit on
+  a block is at least 8 mm up" is now "about 9 mm up" in the README and left out of the `scoring` field.
+
+## Results on the GPU (after this revision)
+
+Re-run on the L40S on 2026-11-14 with this revision's files, one trial each:
+
+- Scripted demo: 1.0 (success ended the trial at step 882 of 1,200; offline prediction 881)
+- Demo with the left arm idle (one-arm): 0.25
+- Demo with the right arm idle: 0.0 (the glass came down on the marks; touch recorded at step 782)
+- Dream-1: 0.0 (ran the full 1,200 steps)
+
+# First review (2026-11-12): how it was answered
 
 ## The reviewer's points
 
@@ -89,7 +170,8 @@ end and no step with unreadable arms. Details under "Results on the GPU" below. 
 
 > "The task fits societal relatability better than impact on jobs, since glazing is a familiar niche trade."
 
-Done. The category is now "Societal relatability". The context is reworded for it: modern home and office windows
+Done at the time: the first revision moved the category to "Societal relatability" (the second review then asked for
+"Impact on jobs": see the top of this file). Its context was reworded for that: modern home and office windows
 stand their glass on setting blocks, and a householder replacing a pane in a uPVC or timber window does what a
 glazier does; glass whose edge comes down on the sill chips, cracks or loses its seal and then mists up. The O*NET
 reference is dropped. The context also names the hardest physical step with its numbers (over 40 mm stops into a
@@ -113,16 +195,18 @@ only the glass's pose and is unchanged.
 
 The instruction now states the goal only, not the order of work or how to lower the glass: "Stand the glass unit in
 the frame on the two black setting blocks, set on the white marks, and let go. The glass must never touch the sill."
-(139 characters). The title is now "Stand a glass unit on two setting blocks in a window frame channel": it names
+(139 characters; the second review changed it, see "Second review" above). The title is now "Stand a glass unit on two setting blocks in a window frame channel": it names
 the step the robot completes, since no glazing beads or sealant are fitted. The context says what is withheld. A test checks that neither the instruction nor the title says "then", "first", "before",
 "after", "lower" or "straight down".
 
 ## Text, so that every threshold can be read in a real trial
 
-- The scoring text ends with how a real trial is read: chalk on the unit's bottom edge (a print on the sill or on a
-  white mark is a touch; glass lowered without blocks lands on the 1 mm marks), a ruler and protractor on a top
-  photo for the block and centring bands and the tilt, the video for the 30 mm release and the 1 s stillness, and
-  a 1 mm feeler gauge between the standing unit and each block. The README's scoring table has the same checks in a
+- The scoring text ends with how a real trial is read: blue chalk on all four edges of the unit (a print on the sill or on a
+  white mark is a touch; glass lowered without blocks lands on the 1 mm marks), the unit lifted out
+  after the end photo and the channel photographed from above for the block and chalk readings, ruler and protractor
+  on the end photo for centring and tilt, the video for the 30 mm release and the 1 s stillness, and, for "resting",
+  the unit standing on its own, let go and still for 1 s with no chalk print (the earlier 1 mm feeler gauge clause is
+  gone). The README's scoring table has the same checks in a
   column. The finger-zone radii are given in the README only, to keep the scoring text inside the board's limit;
   the rule itself is unchanged.
 - The fidelity is in the order the board's accepted tasks use (physics, then "Simplified:", then deviations with
@@ -136,7 +220,7 @@ the step the robot completes, since no glazing beads or sealant are fitted. The 
 
 ## Checks
 
-- `python3 -m unittest discover -s tests`: 73 tests pass.
+- `python3 -m unittest discover -s tests`: 81 tests pass.
 - Mutation spot check of the new rules. Each of these is caught by the tests:
   - let-go ignored;
   - unreadable arms counted as let go;
@@ -167,3 +251,4 @@ The revised task (this `scoring.py`, `layout.py` and demo) on an L40S, 2026-11-1
 | Dream-1, 1,200 steps | 0.0 | One block moved into the channel, 42 mm from its mark; the glass not moved |
 
 The README's results table, `task.json`'s `scores` and these figures are the same run.
+

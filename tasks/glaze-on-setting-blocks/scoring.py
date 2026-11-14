@@ -1,8 +1,10 @@
 """The scorer, as plain functions of the glass unit's and the two setting blocks' states and of the arms (as
 ``rigstate.arms()`` gives them). NumPy only; no simulator.
 
-The rule is about the whole trial, not only its end: the glass must never touch the sill. So the scorer keeps a
-little state (whether any corner of the unit has ever come down to the sill inside the channel, and for each of the
+The rule is about the whole trial, not only its end: the glass must never touch the sill. 'Touch' is contact: a part
+of the unit inside the channel 0.5 mm or less above the surface under it (the sill's top, or a mark's top where the
+unit is over a mark), the same event a chalk print shows on the bench. So the scorer keeps a
+little state (whether the unit has ever touched the sill inside the channel, and for each of the
 three loose objects how many control steps in a row it has been let go and its recent poses) and is fed one
 observation per control step by ``task.success()``.
 
@@ -164,11 +166,104 @@ def in_channel(unit) -> bool:
     return all(_inside_channel(p[:2], L.CHANNEL_SLACK) for p in corners(unit, _UH))
 
 
+def _edge_samples() -> np.ndarray:
+    """Points along the unit's twelve edges (corners included), in units of the half sizes, at most TOUCH_STEP apart."""
+    pts = []
+    for a in range(3):
+        n = int(math.ceil(2 * _UH[a] / L.TOUCH_STEP)) + 1
+        t = np.linspace(-1.0, 1.0, n)
+        o1, o2 = [b for b in range(3) if b != a]
+        for s1 in (-1, 1):
+            for s2 in (-1, 1):
+                p = np.zeros((n, 3))
+                p[:, a], p[:, o1], p[:, o2] = t, s1, s2
+                pts.append(p)
+    return np.vstack(pts)
+
+
+_EDGE_LOCAL = _edge_samples() * _UH  # (N, 3), the unit's body frame
+
+
+def _surface_under(xy: np.ndarray) -> np.ndarray:
+    """Height (z) of the surface under each of the points (N, 2): a mark's top over a mark, else the sill's top."""
+    on_mark = np.zeros(len(xy), dtype=bool)
+    eps = 1e-6  # a bottom edge exactly on a mark's edge (a unit as wide as the mark) is over the mark
+    for my in L.MARK_YS:
+        on_mark |= ((np.abs(xy[:, 0] - L.FRAME_X) <= L.MARK_SIZE[0] / 2 + eps)
+                    & (np.abs(xy[:, 1] - my) <= L.MARK_SIZE[1] / 2 + eps))
+    return np.where(on_mark, L.MARK_TOP, L.SILL_TOP)
+
+
+_CORNER_LOCAL = np.array([[i, j, k] for i in (-1, 1) for j in (-1, 1) for k in (-1, 1)], float) * _UH
+_EDGES = [(a, b) for a in range(8) for b in range(a + 1, 8) if bin(a ^ b).count("1") == 1]  # the twelve edges
+
+
+def _lowest_above(xy, r: np.ndarray, c: np.ndarray) -> float:
+    """z of the unit's lowest point on the vertical line through (x, y); inf when the line misses the box."""
+    b = r[2, :]  # the vertical direction in the body frame
+    a = np.array([xy[0] - c[0], xy[1] - c[1], -c[2]]) @ r  # the point (x, y, 0) in the body frame
+    lo, hi = -math.inf, math.inf
+    for i in range(3):
+        if abs(b[i]) < 1e-12:
+            if abs(a[i]) > _UH[i] + 1e-10:
+                return math.inf
+            continue
+        t1, t2 = (-_UH[i] - a[i]) / b[i], (_UH[i] - a[i]) / b[i]
+        lo, hi = max(lo, min(t1, t2)), min(hi, max(t1, t2))
+    return lo if lo <= hi else math.inf  # z = t along the vertical (the line is x, y fixed, z = t)
+
+
+def _mark_gaps(unit) -> np.ndarray:
+    """Exact contact candidates at the outline of each mark, where the surface under the unit steps up by 1 mm: the
+    points where each of the unit's twelve edges crosses the vertical plane of each of the mark's four sides (inside
+    that side), and the unit's lowest point straight above each of the mark's four corners. Gap = z - mark's top."""
+    r, c = rotation(unit.quat_xyzw), np.asarray(unit.pos, dtype=float)
+    v = c + _CORNER_LOCAL @ r.T
+    pa = v[[e[0] for e in _EDGES]]
+    pb = v[[e[1] for e in _EDGES]]
+    hx, hy = L.MARK_SIZE[0] / 2, L.MARK_SIZE[1] / 2
+    out = []
+    for my in L.MARK_YS:
+        sides = ((0, L.FRAME_X - hx, 1, my - hy, my + hy), (0, L.FRAME_X + hx, 1, my - hy, my + hy),
+                 (1, my - hy, 0, L.FRAME_X - hx, L.FRAME_X + hx), (1, my + hy, 0, L.FRAME_X - hx, L.FRAME_X + hx))
+        for ax, val, other, lo, hi in sides:
+            d = pb[:, ax] - pa[:, ax]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t = (val - pa[:, ax]) / d
+            ok = np.isfinite(t) & (t >= 0.0) & (t <= 1.0)
+            p = pa[ok] + t[ok, None] * (pb[ok] - pa[ok])
+            p = p[(p[:, other] >= lo - 1e-9) & (p[:, other] <= hi + 1e-9)]
+            out.extend((p[:, 2] - L.MARK_TOP).tolist())
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                z = _lowest_above((L.FRAME_X + sx * hx, my + sy * hy), r, c)
+                if math.isfinite(z):
+                    out.append(z - L.MARK_TOP)
+    return np.array(out, dtype=float)
+
+
+def sill_gaps(unit) -> np.ndarray:
+    """Height above the surface under it (the sill's top, or a mark's top over a mark) of every sampled point of the
+    unit's edges (its eight corners and points every 5 mm or finer along the twelve edges) that lies inside the
+    channel's outline (2 mm slack), plus the exact candidates at each mark's outline (where its 4 sides cross the
+    unit's edges, and the unit's lowest point above each mark corner; ``_mark_gaps``). Empty when none exists."""
+    r, c = rotation(unit.quat_xyzw), np.asarray(unit.pos, dtype=float)
+    pts = c + _EDGE_LOCAL @ r.T
+    x0, x1, y0, y1 = _CHANNEL
+    k = L.TOUCH_SLACK
+    keep = (pts[:, 0] >= x0 - k) & (pts[:, 0] <= x1 + k) & (pts[:, 1] >= y0 - k) & (pts[:, 1] <= y1 + k)
+    pts = pts[keep]
+    return np.concatenate([pts[:, 2] - _surface_under(pts[:, :2]), _mark_gaps(unit)])
+
+
 def touches_sill(unit) -> bool:
-    """A corner of the unit inside the channel's outline (2 mm slack) is less than 1 mm above the marks' top
-    (2 mm above the sill's): it is down on the sill or on a mark, not on a block (8 mm tall). A box's lowest
-    point is always at a corner, so this catches any part of it coming down there."""
-    return any(p[2] < L.SILL_TOUCH_Z and _inside_channel(p[:2], L.TOUCH_SLACK) for p in corners(unit, _UH))
+    """The unit is in contact with the sill: some point of its corners or edges inside the channel's outline (2 mm
+    slack) is 0.5 mm or less above the surface under it (a mark's top over a mark, else the sill's top), counting
+    the exact points at each mark's outline. Edges, not only corners: a unit lowered with no blocks rests on the two
+    1 mm marks along its bottom edges while its corners hang 1 mm above the bare sill, and that is a touch. A unit
+    standing on blocks set on the marks is about 9 mm up."""
+    g = sill_gaps(unit)
+    return bool(g.size and g.min() <= L.SILL_TOUCH_GAP)
 
 
 def standing(unit) -> bool:
@@ -313,9 +408,10 @@ class Tracker:
         self.poses: list[list[tuple[np.ndarray, np.ndarray]]] = [[], [], []]  # their last WINDOW_STEPS poses
         self.still = [False, False, False]
         self.gaps: list[float | None] = [None, None, None]  # this step's nearer finger zone gap to each (m)
-        self.touched = False  # the unit has touched the sill inside the channel
+        self.touched = False  # the unit has been in contact with the sill (or a mark) inside the channel
         self.touched_at = None  # the step it first did
         self.min_low = math.inf  # the lowest any corner of the unit has been inside the channel (z)
+        self.min_gap = math.inf  # the lowest any sampled point of its edges has been above the surface under it
         self.last: Result = Result(0.0, False, {})
         self.prev = None  # [(centre, velocity)] of the unit and both blocks at the previous valid control step
 
@@ -380,6 +476,8 @@ class Tracker:
         if not valid(unit, *blocks):  # a broken observation: count it, score it 0, keep the sill record, and
             self.bad_steps += 1  # restart the let-go and stillness counts (nothing can be judged at rest from it)
             self._forget_hold()
+            if valid(unit) and touches_sill(unit) and not self.touched:  # the unit alone is readable: still a touch
+                self.touched, self.touched_at = True, self.steps
             self.last = self.result(unit, *blocks)
             return self.last
         now = [(np.array(s.pos, dtype=float), np.array(s.lin_vel, dtype=float)) for s in (unit, *blocks)]
@@ -391,6 +489,9 @@ class Tracker:
         inside = [p for p in corners(unit, _UH) if _inside_channel(p[:2], L.TOUCH_SLACK)]
         if inside:
             self.min_low = min(self.min_low, min(float(p[2]) for p in inside))
+        gaps = sill_gaps(unit)
+        if gaps.size:
+            self.min_gap = min(self.min_gap, float(gaps.min()))
         if touches_sill(unit) and not self.touched:
             self.touched, self.touched_at = True, self.steps
         self.last = self.result(unit, *blocks)
@@ -438,6 +539,7 @@ class Tracker:
             "unit_off_mm": _mm(off),
             "unit_low_mm": _mm(unit_low(unit) - L.SILL_TOP),  # lowest corner above the sill's top
             "min_low_in_channel_mm": _mm(self.min_low - L.SILL_TOP),
+            "min_gap_in_channel_mm": _mm(self.min_gap),
             "on_block": on,
             "gap_mm": [_mm(gap_to_block(unit, b)) for b in blocks],
             "share_under": [round(share_under(unit, b), 3) for b in blocks],

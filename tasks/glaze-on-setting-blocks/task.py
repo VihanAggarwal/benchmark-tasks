@@ -41,8 +41,7 @@ SUCCESS_HOLD_S = 1.0
 
 # The goal only: the order of work and how to bring the glass in are for the robot to work out.
 INSTRUCTION = (
-    "Stand the glass unit in the frame on the two black setting blocks, set on the white marks, and let go. "
-    "The glass must never touch the sill."
+    "Stand the glass unit centred in the frame on the two black setting blocks, set on the white marks, and let go. The glass must never touch the sill."
 )
 
 _sill_z = L.TOP + L.SILL_SIZE[2] / 2
@@ -161,8 +160,8 @@ U_ENTRY_Z = U_PLACE_Z + 0.020  # the last 20 mm are lowered slowly
 HOVER_L = L.TOP + 0.14
 # After letting go the hand goes straight up and then back over the unit's (now empty) starting spot, at the height it
 # first came over the unit: its finger zone (rigstate.py, 35 mm round the pads' axis at the 48 mm let-go opening) ends
-# about 12 cm (117 mm offline) from the glass, well past the scorer's 30 mm 'let go'. Straight up alone (pad tips 18 mm over the
-# glass) would not count: the zone reaches below the pad tips.
+# about 12 cm (117 mm offline) from the glass, well past the scorer's 30 mm 'let go'. Straight up alone (pad tips 18 mm
+# over the glass) would not count: the zone reaches below the pad tips.
 RETREAT_L = (L.UNIT_X, L.UNIT_Y, HOVER_L)
 # Where the unit is set down, from the channel's centre (x, y). The sideways sag moves it about (-1.3, +1.3) mm, well
 # inside the channel's 8 mm play each side and the 8 mm centring limit, so no trim. On the GPU, read unit_pos in

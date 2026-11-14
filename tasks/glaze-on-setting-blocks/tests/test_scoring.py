@@ -18,8 +18,9 @@ sys.path.insert(0, str(HERE))
 import layout as L  # noqa: E402
 import rigstate  # noqa: E402
 from scoring import (  # noqa: E402
+    corners,
     Tracker, block_on_sill, block_set_on, block_yaw_err_deg, gap_to_block, hand_gap, in_channel, let_go_now,
-    on_block, rotation, share_under, standing, touches_sill, unit_tilt_deg,
+    on_block, rotation, share_under, sill_gaps, standing, touches_sill, unit_tilt_deg,
 )
 
 UH = L.UNIT_SIZE[2]
@@ -188,16 +189,73 @@ class Geometry(unittest.TestCase):
         self.assertAlmostEqual(block_yaw_err_deg(about("x", 180)), 0.0, places=4)  # flipped onto its other face
 
     def test_touching_the_sill(self):
+        # the rule is contact: a part of the unit inside the channel 0.5 mm or less above the surface under it
+        self.assertEqual(L.SILL_TOUCH_GAP, 0.0005)
         self.assertTrue(touches_sill(U_SILL))
-        self.assertTrue(touches_sill(unit_at(low=L.SILL_TOP + 0.0019)))
-        self.assertFalse(touches_sill(unit_at(low=L.SILL_TOP + 0.0021)))  # 2.1 mm up
         self.assertFalse(touches_sill(U_ON))  # on the blocks: 9 mm up
         self.assertFalse(touches_sill(U_HOME))  # low, but on the table outside the frame
         self.assertFalse(touches_sill(unit_at(0.25, 0.0, L.TOP)))  # on the table beside the frame
-        # tipped about x on one block: its far corner comes down to 1.5 mm above the sill
+        self.assertFalse(touches_sill(U_OVER))
+
+    def test_a_level_unit_on_the_two_marks_is_a_touch(self):
+        # lowered with no blocks it rests on the marks along its bottom edges, its corners 1 mm above the bare sill
+        u = unit_at(low=L.MARK_TOP)
+        self.assertTrue(touches_sill(u))
+        corner_gaps = [p[2] - L.SILL_TOP for p in corners(u, np.array(L.UNIT_SIZE) / 2) if p[2] < L.SILL_TOP + 0.002]
+        self.assertTrue(corner_gaps and all(abs(g - 0.001) < 1e-9 for g in corner_gaps))
+        self.assertAlmostEqual(float(sill_gaps(u).min()), 0.0, places=9)
+
+    def test_bottom_edge_over_a_mark_half_a_millimetre(self):
+        self.assertTrue(touches_sill(unit_at(low=L.MARK_TOP + 0.0004)))  # 0.4 mm above a mark's top
+        self.assertFalse(touches_sill(unit_at(low=L.MARK_TOP + 0.0006)))  # 0.6 mm: a near miss
+
+    def test_contact_on_a_mark_outline_between_edge_samples(self):
+        # a pose whose lowest point over a mark lies on the mark's outline between two edge samples (true gap 0.038 mm)
+        pos, q = (0.3, 0.0045, 0.840757), (0.241922, 0, 0, 0.970296)  # quaternion xyzw
+        u = SimpleNamespace(pos=np.array(pos), quat_xyzw=np.array(q), lin_vel=np.zeros(3), ang_vel=np.zeros(3),
+                            low=np.zeros(3), high=np.zeros(3))
+        self.assertTrue(touches_sill(u))
+        self.assertLess(float(sill_gaps(u).min()), 0.0001)
+        up = SimpleNamespace(**{**u.__dict__, "pos": np.array(pos) + np.array([0, 0, 0.0007])})
+        self.assertFalse(touches_sill(up))  # raised 0.7 mm: a near miss
+
+    def test_two_degree_roll_with_the_bottom_face_on_a_mark_edge(self):
+        for sign in (1, -1):
+            q = about("y", 2.0 * sign)  # a roll about the unit's long axis
+            r = rotation(q)
+            corners_local = np.array([[i, j, k] for i in (-1, 1) for j in (-1, 1) for k in (-1, 1)]) * (
+                np.array(L.UNIT_SIZE) / 2)
+            w = corners_local @ r.T
+            low_x = w[w[:, 2] == w[:, 2].min()][0, 0]  # x of the low edge relative to the centre
+            side = -1 if low_x < 0 else 1
+            # the low edge sits exactly on the mark's outer side (x), at the mark's top, over the mark (y = its centre)
+            x = L.FRAME_X + side * L.MARK_SIZE[0] / 2 - low_x
+            u = unit_at(x, L.MARK_YS[1], low=L.MARK_TOP, quat=q)
+            self.assertTrue(touches_sill(u))
+            self.assertFalse(touches_sill(unit_at(x, L.MARK_YS[1], low=L.MARK_TOP + 0.0007, quat=q)))
+
+    def test_tilted_unit_whose_low_corner_is_near_the_sill(self):
+        # tipped 3 degrees about x so its far end is down, clear of the marks: only that end is near the sill
+        q = about("x", 3.0)
+        self.assertTrue(touches_sill(unit_at(low=L.SILL_TOP, quat=q)))  # the low corner reaches the sill
+        self.assertTrue(touches_sill(unit_at(low=L.SILL_TOP + 0.0004, quat=q)))  # 0.4 mm above the bare sill
+        self.assertFalse(touches_sill(unit_at(low=L.SILL_TOP + 0.0006, quat=q)))  # 0.6 mm: not
+        self.assertFalse(touches_sill(unit_at(low=L.SILL_TOP + 0.0010, quat=q)))  # 1.0 mm over the bare sill: near miss
+        # the marks are not what it touched: at the mark nearer the low end it is over 1 mm above the mark's top
+        self.assertGreater(float(sill_gaps(unit_at(low=L.SILL_TOP + 0.0010, quat=q)).min()), 0.0005)
+
+    def test_tipped_onto_one_block_is_not_a_touch(self):
         q = about("x", 4.5)
-        self.assertTrue(touches_sill(unit_at(low=L.SILL_TOP + 0.0015, quat=q)))
         self.assertFalse(touches_sill(unit_at(low=L.SILL_TOP + 0.003, quat=q)))
+        self.assertTrue(touches_sill(unit_at(low=L.SILL_TOP, quat=q)))
+
+    def test_edges_are_sampled_every_5mm_or_finer(self):
+        from scoring import _EDGE_LOCAL
+        self.assertEqual(L.TOUCH_STEP, 0.005)
+        for a, size in enumerate(L.UNIT_SIZE):  # along each axis consecutive samples on an edge are <= 5 mm apart
+            along = np.unique(np.round(_EDGE_LOCAL[:, a], 9))
+            self.assertLessEqual(float(np.diff(along).max()), 0.005 + 1e-9, a)
+        self.assertGreaterEqual(len(_EDGE_LOCAL), 200)
 
     def test_in_the_channel(self):
         self.assertTrue(in_channel(U_ON))
@@ -361,7 +419,7 @@ class Tiers(unittest.TestCase):
         self.assertEqual(r.score, 0.0)
 
     def test_unit_lowered_onto_the_bare_sill_scores_zero(self):
-        # the left arm alone: no blocks, the unit lowered 2 mm further than their tops would be
+        # the left arm alone: no blocks, the unit lowered onto the sill
         mu = move_unit(U_SILL)
         r, t = run(mu, hold(B1_HOME, len(mu)), hold(B2_HOME, len(mu)))
         self.assertTrue(t.touched)
@@ -440,7 +498,7 @@ class Exploits(unittest.TestCase):
     def test_a_momentary_dip_onto_the_sill_counts(self):
         # rocked so a corner is down on the sill for one control step, then back on both blocks
         us, b1, b2 = procedure()
-        rocked = unit_at(low=L.SILL_TOP + 0.001, quat=about("x", 4.5))
+        rocked = unit_at(low=L.SILL_TOP, quat=about("x", 4.5))
         k = len(us) - 60
         r, t = run(us[:k] + [rocked] + us[k + 1:], b1, b2)
         self.assertEqual(t.touched_at, k + 1)
@@ -677,6 +735,18 @@ class OddStates(unittest.TestCase):
             json.dumps(r.details, allow_nan=False)
             json.dumps(t.result(u, a, b).details, allow_nan=False)
 
+    def test_a_touch_is_latched_when_only_a_block_is_unreadable(self):
+        t = Tracker()
+        t.update(U_HOME, B1_HOME, B2_HOME)
+        bad_block = state(B2_SET.pos, B2_SET.size, vel=(0, float("nan"), 0))
+        r = t.update(unit_at(low=L.SILL_TOP), B1_SET, bad_block)  # the unit's own state is fine: it sits on the sill
+        self.assertTrue(t.touched)
+        self.assertEqual(t.bad_steps, 1)
+        self.assertEqual(r.score, 0.0)
+        r, _ = run([U_ON] * 3, [B1_SET] * 3, [B2_SET] * 3, tracker=t)
+        self.assertTrue(r.details["touched"])
+        self.assertEqual(r.score, 0.0)
+
     def test_blow_ups_score_zero_and_leave_the_tracker_alone(self):
         for k, (u, a, b) in enumerate(self.odd()[:6]):
             us, b1, b2 = procedure()
@@ -792,7 +862,7 @@ STUB = OFFLINE / "yam_stub"
 
 
 def load_task():
-    """task.py, imported through the offline stand-in for yam_arena."""
+    """task.py, imported through the offline yam_arena stub."""
     if str(STUB) not in sys.path:
         sys.path.insert(0, str(STUB))
     spec = importlib.util.spec_from_file_location("glaze_task_under_test", HERE / "task.py")
@@ -856,7 +926,7 @@ class DemoTiming(unittest.TestCase):
         self.assertEqual(tuple(np.round(unit[0].pos[:2], 6)), (CX, CY))
 
     def commanded(self, arm, sag=0.0):
-        """Each control step's commanded gripper (rigstate.Arm) for one arm, through the stand-in ArmPlan's own
+        """Each control step's commanded gripper (rigstate.Arm) for one arm, through the stub ArmPlan's own
         interpolation; ``sag`` lowers every TCP (a tracking error or payload sag the scorer must survive)."""
         if str(OFFLINE) not in sys.path:
             sys.path.insert(0, str(OFFLINE))
@@ -916,7 +986,7 @@ class DemoTiming(unittest.TestCase):
 
 @unittest.skipUnless(STUB.is_dir(), "needs the offline yam_arena stub (tools/offline/yam_stub)")
 class TaskFile(unittest.TestCase):
-    """task.py itself, imported through the offline stand-in for yam_arena (not part of a submission)."""
+    """task.py itself, imported through the offline yam_arena stub (not part of a submission)."""
 
     @contextlib.contextmanager
     def env(self, **kw):
@@ -985,19 +1055,24 @@ class TaskFile(unittest.TestCase):
         task = self.load()
         meta = json.loads((HERE / "task.json").read_text())
         self.assertEqual(meta["instruction"], task.INSTRUCTION)
-        self.assertEqual(meta["category"], "Societal relatability")
+        self.assertEqual(meta["category"], "Impact on jobs")
         sc = meta["scoring"]
         self.assertEqual((L.LET_GO_CLEAR, L.WINDOW_S, L.WINDOW_STEPS), (0.030, 1.0, 20))
         self.assertEqual((L.STILL_MOVE, L.STILL_TURN_DEG, L.ON_BLOCK_GAP), (0.002, 2.0, 0.001))
         self.assertEqual(task.SUCCESS_HOLD_S, 1.0)
         for phrase in ("30 mm", "last 20 control steps (1 s)", "within 2 mm and 2 degrees", "within 1 mm of the block",
-                       "unreadable", "for 1 s", "1 mm below to 2 mm above the sill's top"):
+                       "unreadable", "for 1 s", "in contact with the sill's top or a mark's top",
+                       "0.5 mm or less above the surface under it", "chalk"):
             self.assertIn(phrase, sc, phrase)
-        for stale in ("within 2 mm of the block", "for 3 s", "3 mm above the sill", "cannot see the grippers"):
+        for stale in ("within 2 mm of the block", "for 3 s", "3 mm above the sill", "cannot see the grippers",
+                      "less than 2 mm above the sill", "within 2 mm of the sill"):
             self.assertNotIn(stale, sc + meta["fidelity"], stale)
         readme = (HERE / "README.md").read_text()
         self.assertIn(task.INSTRUCTION, readme)
         self.assertNotIn("cannot see the grippers", readme)
+        for stale in ("within 2 mm of the sill", "less than 2 mm above the sill"):
+            self.assertNotIn(stale, readme, stale)
+        self.assertIn("0.5 mm or less above the surface under it", readme)
 
     def test_the_instruction_states_the_goal_only(self):
         task = self.load()

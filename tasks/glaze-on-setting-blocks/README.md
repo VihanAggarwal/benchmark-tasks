@@ -1,12 +1,15 @@
 # Stand a glass unit on two setting blocks in a window frame channel
 
-Glaziers, and householders replacing a pane in a uPVC or timber window, stand an insulated glass unit on two
-setting blocks placed at its quarter points, so its weight never bears on the frame's sill: glass whose bottom edge
-comes down on the sill can chip, crack or lose its seal. Here the bottom of a window frame (a sill with two glazing
+General maintenance and repair workers (about 1.6 million in the US, BLS occupation 49-9071) keep buildings in
+repair, and replacing a broken or misted glazed unit in a window or door is part of that regular work. On the job the worker takes off the beads, lifts out the failed unit, checks or
+renews the setting blocks and stands the new unit on them in the existing frame; this task is that last step. The unit
+stands on two setting blocks at its quarter points, so its weight never bears on the frame's sill: glass whose
+bottom edge comes down on the sill can chip, crack or lose its seal. Here the bottom of a window frame (a sill with two glazing
 stops forming a 40 mm channel, closed by two short jambs) is fixed on the table. In the demo the right arm takes two
 rubber setting blocks from a tray and sets them on two white marks in the channel; the left arm carries a 200 mm
 double-glazed unit over, lowers it straight down into the channel, stands it on both blocks and lets go. The scorer
-watches the whole trial: if any corner of the glass ever comes down to the sill, the trial scores 0, however it ends.
+watches the whole trial: if the glass ever touches the sill (contact, 0.5 mm or less above the surface under it),
+the trial scores 0, however it ends.
 It also reads both arms: glass still held by a gripper, or hovering above the blocks, is not resting on them. The
 layout splits the job between the arms: with a top-down grasp only the right arm reaches the blocks and only the
 left arm reaches the glass, and glass lowered into the channel without the blocks lands on the sill.
@@ -14,9 +17,10 @@ left arm reaches the glass, and glass lowered into the channel without the block
 ## Why it is hard
 
 The 24 mm thick, 200 mm long unit is carried over stops 40 mm tall, into a 40 mm channel (8 mm of play per side),
-and set down on blocks whose tops are 9 mm above the sill. No corner may come within 2 mm of the sill at any step:
-standing on the blocks, the glass's lowest corner is about 7 mm above that line (8.3 mm above the sill at the
-lowest in the GPU demo), so a unit let down far out of level, onto one block only, or with no blocks, reaches it.
+and set down on blocks whose tops are 9 mm above the sill. The glass may not touch the sill at any step
+(contact: some part of it inside the channel 0.5 mm or less above the sill's top, or above a mark's top over a
+mark): standing on the blocks, its lowest corner is about 9 mm above the sill (8.3 mm above it at the lowest
+in the GPU demo), so a unit let down far out of level, onto one block only, or with no blocks, reaches it.
 Then both hands must open and move 30 mm or more clear while the glass stays standing on the blocks by itself.
 
 ## Files
@@ -46,13 +50,13 @@ From this folder, after `source <ARENA_DIR>/yam.env`:
 # scripted demo (both arms): expected 1.0
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=task.py -E object_jitter=0 -E control_hz=20 -E cam_width=320 -E cam_height=176 \
-  --instruction "Stand the glass unit in the frame on the two black setting blocks, set on the white marks, and let go. The glass must never touch the sill." \
+  --instruction "Stand the glass unit centred in the frame on the two black setting blocks, set on the white marks, and let go. The glass must never touch the sill." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/glaze-on-setting-blocks/demo
 
 # Dream-1
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=task.py -E object_jitter=0 -E control_hz=20 -E cam_width=320 -E cam_height=176 \
-  --instruction "Stand the glass unit in the frame on the two black setting blocks, set on the white marks, and let go. The glass must never touch the sill." \
+  --instruction "Stand the glass unit centred in the frame on the two black setting blocks, set on the white marks, and let go. The glass must never touch the sill." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/glaze-on-setting-blocks/dream
 ```
 
@@ -62,7 +66,7 @@ starting spots in one step.
 
 Environment switches for the demo: `DEMO_IDLE_ARM=left` or `right` leaves that arm at its ready pose (the
 one-arm check); `DEMO_HOLD_ONLY=1` plays no plan (a settling check); `TASK_TRACE=trace.jsonl` writes one JSON line
-per control step with what the scorer saw and decided (`touched`, `touched_at`, `min_low_in_channel_mm`,
+per control step with what the scorer saw and decided (`touched`, `touched_at`, `min_low_in_channel_mm`, `min_gap_in_channel_mm`,
 `unit_low_mm`, `unit_tilt_deg`, `unit_off_mm`, `on_block`, `gap_mm`, `share_under`, `block_mark_mm`,
 `block_yaw_deg`, `hand_gap_mm`, `let_go_steps`, `still`, `settled`, `arms_unreadable`, both TCPs, positions, ...). Videos: `inspect-robots video <log>.json`.
 
@@ -74,9 +78,14 @@ See `scoring` in `task.json`; the code is `scoring.py`. Once per control step (2
 unit's and the two blocks' poses, and both arms (TCP, pad-tip point and gripper opening, through `rigstate.py`).
 It keeps a small record of the trial:
 
-- whether any corner of the unit inside the channel's outline has come lower than 2 mm above the sill's top
-  (1 mm above the marks). A box's lowest point is always at a corner, and a unit standing on a block is at least
-  8 mm up, so the rule catches glass lowered too far, dropped, or rocked onto one end, even for a single step;
+- whether the unit has ever touched the sill: at some step some part of it inside the channel's outline (2 mm
+  slack) was in contact with the sill's top or a mark's top (0.5 mm or less above the surface under it; a near miss
+  is not a touch). The scorer tests the unit's eight corners and points every 5 mm or finer along its twelve edges,
+  because a unit lowered with no blocks rests on the two 1 mm marks along its bottom edges while its corners hang
+  1 mm above the bare sill. The scorer also tests, exactly, the points where the unit's edges cross the vertical planes
+  of each mark's four sides and the unit's lowest point above each mark corner, so contact at a mark's outline between
+  two samples is not missed. A unit standing on blocks set on the marks is about 9 mm up, so the rule catches glass lowered too
+  far, dropped, or rocked onto one end, even for a single step;
 - for the unit and each block, how many steps in a row it has been **let go**: both grippers' finger zones 30 mm
   or more from it. A finger zone is every point within r of the 38 mm of the gripper's axis above the pad tips,
   r = hypot(half the finger gap + 8 mm, 13.5 mm): 35 mm at the demo's 48 mm let-go opening, 57 mm fully open,
@@ -103,8 +112,8 @@ onto its start is not mistaken for a reset). The score is read at the last step.
 
 | Outcome | Score | Real-bench check |
 |---|---|---|
-| A corner of the unit came within 2 mm of the sill at any moment; or at the end the unit is tilted over 30 degrees (lying down, on its end) or off the table | 0 | Chalk the unit's bottom edge: a print on the sill or on a white mark shows a touch; video for the end pose |
-| Both blocks set (one on each mark, within 8 mm, square within 15 degrees, let go and still); the unit standing in the channel (tilt under 3 degrees) resting on both (let go, still, within 1 mm), within 8 mm of centre | 1.0 | Ruler on a top photo (block to mark, unit to channel centre); protractor on the photos (block turn, unit tilt); video (both hands 30 mm clear, nothing moving for 1 s); the unit stands on its own and a 1 mm feeler gauge does not pass between it and either block |
+| The unit touched the sill at any moment (in contact with the sill's top or a mark's top, 0.5 mm or less above the surface under it); or at the end the unit is tilted over 30 degrees (lying down, on its end) or off the table | 0 | Blue marking chalk on all four edges of the unit: a print on the sill or on a white mark shows a touch (a near miss leaves none); video for the end pose; read the prints on the top photo after the unit is lifted out |
+| Both blocks set (one on each mark, within 8 mm, square within 15 degrees, let go and still); the unit standing in the channel (tilt under 3 degrees) resting on both (let go, still, within 1 mm), within 8 mm of centre | 1.0 | Ruler on the end photo (unit to channel centre), protractor on the photos (unit tilt); after the unit is lifted straight out, ruler and protractor on a top photo of the channel (block to mark, block turn); video (both hands 30 mm clear, nothing moving for 1 s); the unit stands on its own, let go and still for 1 s, with no chalk print on the sill or marks, so only the blocks carry it |
 | The unit standing resting on both blocks, the blocks within 20 mm of their marks (let go and still) and the unit within 15 mm of centre, but outside the 1.0 limits | 0.75 | As for 1.0, with the wider bands |
 | The unit standing in the channel resting on at least one block, not meeting 0.75 (one block only, a block further off or turned, unit further off centre) | 0.5 | As for 1.0, for one block |
 | Both blocks set, the unit not resting on them (not brought over, still held, hovering, leaning in the channel) | 0.25 | Ruler and protractor on a top photo for the blocks; video for the hands |
@@ -131,7 +140,7 @@ still on the tray is worth nothing (0); blocks moved to the ends of the channel 
 
 ## One arm alone
 
-Measured on the GPU with the revised task (2026-11-12): `DEMO_IDLE_ARM=left` (the right arm alone sets both
+Measured on the GPU with the revised task (2026-11-14): `DEMO_IDLE_ARM=left` (the right arm alone sets both
 blocks) scores 0.25. `DEMO_IDLE_ARM=right` (the left arm alone lowers the glass where the blocks should be and lets
 go) scores 0: with no blocks it comes down on the marks, 1 mm above the sill (touch recorded at step 782). With a
 top-down grasp neither arm can do the other's half. The blocks' nearer sides
@@ -193,11 +202,15 @@ A 60 x 260 mm sill 10 mm thick (aluminium or hardwood) with two 8 x 40 mm alumin
 40 mm apart as the stops, and two 40 x 10 x 60 mm blocks closing the channel's ends, clamped to the bench; two
 24 x 30 mm white labels on the sill at the quarter points; two setting blocks cut from 8 mm neoprene or EPDM to
 24 x 30 mm (about 7 g each) on a small tray; and a 24 x 200 x 80 mm double-glazed unit of about 200 g (two 2 mm
-panes on a 20 mm aluminium spacer; for safety, acrylic panes on a weighted spacer to the same mass). Chalk the
-unit's bottom edge before each trial: a print on the sill or on a white mark shows that it touched. Read the
-other thresholds as the scoring table says: a ruler and protractor on a top photo for the blocks' and the unit's
-positions and turn, the video for the hands' 30 mm release and the 1 s stillness, and a 1 mm feeler gauge between
-the unit and each block once it stands on its own.
+panes on a 20 mm aluminium spacer; for safety, acrylic panes on a weighted spacer to the same mass). Chalk all four
+edges of the unit with blue marking chalk before each trial (the marks are white, so a blue print shows): a print on
+the sill or on a white mark shows that it touched. Contact is the rule in simulation and on the bench alike (a near
+miss leaves no print and is not a touch). After the end photo and video, lift the unit straight out and photograph
+the channel from above: the blocks' distance from the marks, their turn and any chalk print on the sill or a mark are
+read on that photo. Read the other thresholds as the scoring table says: a ruler and protractor on the end photo for
+the unit's centre distance and tilt, the video for the hands' 30 mm release and the 1 s stillness, and, for
+"resting", the unit standing on its own, let go and still for 1 s with no chalk print on the sill or marks, so only
+the blocks carry it.
 
 Third-party assets: none. The scene is built from the task file's own boxes.
 
