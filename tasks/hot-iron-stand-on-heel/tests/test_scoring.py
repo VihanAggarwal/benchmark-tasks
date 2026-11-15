@@ -107,8 +107,26 @@ class Layout(unittest.TestCase):
         self.assertGreater(L.HEEL_H - L.COM[2], 25.0)
         self.assertLess(T.PHI_LET_GO, 90.0)
         self.assertGreater(T.PHI_LET_GO - L.BALANCE_DEG, 15.0)
-        # held from the top of the handle loop, the pin is over the heel face (0 .. 70 mm) or 10 mm behind it
-        self.assertLessEqual(T.POST_Z - L.HEEL_H, 10.0)
+
+    def test_low_push_does_not_tip_it(self):
+        # GPU job 20261115T163632: walked by a pinch 190 mm up, the iron rolled in the pinch and fell on its side. The
+        # push now acts on the side of the heel block, low: tipping about the heel's leading side edge needs
+        # F h > m g b, and sliding needs F = mu m g, so it slides first while h < b / mu.
+        w = L.IRON_MASS * 9.81
+        b = L.SHELL[2] / 2 * L.MM  # the heel face's half width (the shell's; the sole is 2.5 mm wider each side)
+        h_rest = T.PUSH_Z - L.REST_TOP  # the push line over the heel face's bottom, on the rest and on the cover
+        h_mat = T.PUSH_Z - L.MAT_TOP
+        self.assertAlmostEqual(h_rest, 0.015)
+        self.assertAlmostEqual(h_mat, 0.020)
+        for mu_other, h in ((1.0, h_rest), (L.MAT_FRICTION, h_mat)):
+            for mu in ((L.IRON_FRICTION + mu_other) / 2, max(L.IRON_FRICTION, mu_other)):  # average or max combine
+                self.assertGreater(w * b / (mu * w * h), 3.0, (mu_other, mu))
+        # the centre of mass is 99 mm up: the walk's pinch (190 mm up) was past the b / mu (77 mm) limit
+        self.assertGreater(0.190, b / ((L.IRON_FRICTION + L.MAT_FRICTION) / 2))
+        # at the rest's 5 mm edge the heel rolls at most 2.9 deg toward the push: the centre of mass moves 5 mm
+        # (worst case: friction 1.0 there, the rest's, under the max combine)
+        roll = math.asin(L.REST_T / (2 * b))
+        self.assertGreater(w * (b - L.COM[0] * L.MM * math.sin(roll)) / (1.0 * w * h_mat), 2.0)
 
     def test_handle_room(self):
         x0, x1, z0, z1 = L.BAR
@@ -130,16 +148,22 @@ class Layout(unittest.TestCase):
         lo, hi = T.IRON_SPEC.world_bounds()
         self.assertAlmostEqual(lo[2], L.TOP + L.REST_TOP, places=6)
 
-    def test_post_room(self):
-        # the re-grip on the standing iron's front post: pads 20 mm wide, the pad tips over the shell's top
-        x0, x1, z0, z1 = L.FRONT_POST
-        self.assertEqual(x1 - x0, 25.0)
-        self.assertGreaterEqual((T.POST_Z - 10.0) - z0, 25.0)  # pads 25 mm or more behind the nose block
-        self.assertGreaterEqual(z1 - (T.POST_Z + 10.0), 25.0)  # and in from the post's rear end
-        self.assertGreaterEqual(T.POST_TIPS - L.SHELL[1], 5.0)  # pad tips over the shell's top
-        self.assertGreaterEqual(x1 - T.POST_TIPS, 15.0)  # 15 mm or more of pad down the post
-        self.assertGreater((T.POST_TCP + 25.0) - x1, 15.0)  # the gripper's body over the post's top
-        self.assertGreater((rigstate.FULL_GAP / L.MM - L.NOSE[2]) / 2, 10.0)  # open pads clear of the nose block
+    def test_push_room(self):
+        # the pad block's face (27 mm wide) at the depth of the centre of mass, all of it on the shell's side face
+        # (8 to 70 mm behind the sole's plane, 0 to 175 mm up); its lowest corner over the rest's top
+        half = rigstate.FINGER_HALF_WIDTH / L.MM
+        self.assertAlmostEqual(T.PUSH_DEPTH / L.MM, L.COM[2], delta=0.5)
+        self.assertGreaterEqual(T.PUSH_DEPTH / L.MM - half - L.SHELL[3], 10.0)
+        self.assertGreaterEqual(L.SHELL[4] - (T.PUSH_DEPTH / L.MM + half), 10.0)
+        lam = math.radians(T.PUSH_ROLL)
+        low = T.PUSH_Z - (T.PAD_FACE + T.PAD_BACK) * math.sin(lam)
+        self.assertGreaterEqual(low - L.REST_TOP, 0.004)
+        # leaning, the face's bottom edge leads: the slanted face (0.18 mm a mm), the shoulder (32.6 mm over the
+        # tips, 14.5 mm out) and the gripper's body stay behind its plane
+        self.assertGreater(math.tan(lam), 0.18)
+        u, r = 32.6, 14.5
+        lead_face = T.PAD_FACE / L.MM * math.cos(lam)
+        self.assertGreater(lead_face - (r * math.cos(lam) - u * math.sin(lam)), 8.0)
 
     def test_turn_up_on_the_rest(self):
         # flat at the turn-up spot: the whole sole over the rest or overhanging its front edge, the centre of mass
@@ -153,10 +177,10 @@ class Layout(unittest.TestCase):
         self.assertGreaterEqual(T.TURN[0] - L.HEEL_H * L.MM - L.REST_X0, 0.030)
         self.assertFalse(S.touching(*S.read(flat)[:2])[0])
         self.assertFalse(S.touching(*S.read(iron(T.TURN, L.REST_TOP, 90.0))[:2])[0])
-        self.assertEqual(T.TURN[0], T.END_SPOT[0])  # walked along y only: along the pinch axis
 
     def test_standing_iron_in_the_zone_and_clear(self):
-        s = standing(T.END_SPOT)
+        hx, _, _ = T.stand_pose()
+        s = standing((hx, T.HEEL_END_Y))
         p = S.pose(*S.read(s))
         self.assertTrue(p["upright"] and p["in_zone"])
         self.assertGreaterEqual(s.low[1], L.MAT_Y0)
@@ -396,31 +420,62 @@ class Offline(unittest.TestCase):
         self.assertAlmostEqual(OI.nose_pitch_deg(m.r), 90.0, places=6)
         return m
 
-    def test_post_grip_and_walk_standing(self):
+    def _pusher(self, face_y, x=None, opening=0.0):
+        """The left arm's closed block with its face at ``face_y`` (the demo's push pose)."""
+        x = T.stand_pose()[0] - T.PUSH_DEPTH if x is None else x
+        tcp = np.array(T.push_tcp(face_y, x))
+        a = np.asarray(T.push_yaw().rotation)[:, 2]
+        arms = far()
+        arms["left"] = rigstate.Arm(tcp=tcp, tips=tcp + 0.013 * a, opening=opening)
+        return arms
+
+    def test_low_push_moves_it_standing(self):
         m = self._standing_on_rest()
-        grip = np.array(T.post_tcp(T.TURN, L.REST_TOP))
-        m.step(self._arm(grip - np.array([T.POST_BEHIND, 0.0, 0.0]), 0.0, 1.0))
-        m.step(self._arm(grip, 0.0, 1.0))
-        m.step(self._arm(grip, 0.0, 0.17))
-        self.assertEqual(m.held, "right")
+        x = T.TURN[0] - T.PUSH_DEPTH  # the offline iron stands at TURN
+        wall = m.o[1] + L.SHELL[2] / 2 * L.MM
+        m.step(self._pusher(wall + 0.015, x))
+        self.assertTrue(np.allclose(m.o[:2], T.TURN, atol=1e-9))
         tr = S.Tracker()
-        for k in range(1, 25):
-            y = T.TURN[1] + (T.END_SPOT[1] - T.TURN[1]) * k / 24
-            on = L.REST_TOP if y - 0.050 >= L.REST_Y0 else L.MAT_TOP
-            m.step(self._arm(np.array(T.post_tcp((T.TURN[0], y), on)), 0.0, 0.17))
+        for k in range(1, 41):
+            y = wall + 0.015 + (T.heel_mid_to_face(T.HEEL_END_Y) - wall - 0.015) * k / 40
+            m.step(self._pusher(y, x))
             tr.update(m.state(), far())
-            self.assertGreater(OI.nose_pitch_deg(m.r), 80.0)  # standing on its heel all the way
+            self.assertAlmostEqual(OI.nose_pitch_deg(m.r), 90.0, places=6)
         self.assertIsNone(tr.hazard_at)
-        self.assertTrue(np.allclose(m.o[:2], T.END_SPOT, atol=0.002))
-        m.step(self._arm(np.array(T.post_tcp(T.END_SPOT, L.MAT_TOP)), 0.0, 1.0))
-        self.assertIsNone(m.held)
+        self.assertAlmostEqual(float(m.o[2]), L.TOP + L.MAT_TOP, places=9)  # down the rest's 5 mm edge
         p = S.pose(*S.read(m.state()))
         self.assertTrue(p["upright"] and p["in_zone"])
+        self.assertAlmostEqual(float(m.state().to_world(L.HEEL_CENTRE * L.MM)[1]), T.HEEL_END_Y, delta=0.002)
+        m.step(self._pusher(T.heel_mid_to_face(T.HEEL_END_Y) + 0.040, x))  # backed off: it stays
+        self.assertAlmostEqual(float(m.state().to_world(L.HEEL_CENTRE * L.MM)[1]), T.HEEL_END_Y, delta=0.002)
+
+    def test_open_or_inside_pusher_does_not_push(self):
+        m = self._standing_on_rest()
+        x = T.TURN[0] - T.PUSH_DEPTH
+        wall = m.o[1] + L.SHELL[2] / 2 * L.MM
+        m.step(self._pusher(wall + 0.015, x, opening=1.0))
+        m.step(self._pusher(wall - 0.020, x, opening=1.0))
+        self.assertTrue(np.allclose(m.o[:2], T.TURN, atol=1e-9))
+        m2 = self._standing_on_rest()
+        m2.step(self._pusher(wall - 0.040, x))  # appeared inside, never came from the side
+        m2.step(self._pusher(wall - 0.045, x))
+        self.assertTrue(np.allclose(m2.o[:2], T.TURN, atol=1e-9))
+
+    def test_pushed_lying_it_slides_onto_the_cover(self):
+        # the left arm alone (the right idle): the same push meets the lying iron's side and slides it off the rest
+        m = OI.OfflineIron(T.IRON_SPEC)
+        x = L.START_O[0] + 0.030
+        wall = L.START_O[1] + L.SHELL[2] / 2 * L.MM
+        tr = S.Tracker()
+        for k in range(0, 41):
+            m.step(self._pusher(wall + 0.010 - 0.200 * k / 40, x))
+            tr.update(m.state(), far())
+        self.assertIsNotNone(tr.hazard_at)
 
     def test_lifted_by_the_post_it_swings(self):
         # a person would lift it; this pinch is a pin: lifted 20 mm by the post it hangs, centre of mass under the pin
         m = self._standing_on_rest()
-        grip = np.array(T.post_tcp(T.TURN, L.REST_TOP))
+        grip = np.array([T.TURN[0] - 0.080, T.TURN[1], L.TOP + L.REST_TOP + 0.194])  # pads on the front post
         m.step(self._arm(grip, 0.0, 1.0))
         m.step(self._arm(grip, 0.0, 0.17))
         m.step(self._arm(grip + np.array([0.0, 0.0, 0.020]), 0.0, 0.17))
@@ -449,36 +504,56 @@ class Demo(unittest.TestCase):
     def test_plans(self):
         for v in ("",) + T.VARIANTS:
             p = T.plans(v)
-            self.assertEqual(sorted(p), ["right"])
-            for w in p["right"]:
-                self.assertGreater(w.duration, 0.0, (v, w.label))
-                self.assertLessEqual(w.finger, 0.0)
-                self.assertGreaterEqual(w.finger, T.OPEN)
+            self.assertEqual(sorted(p), ["left", "right"] if v in ("", "half") else ["right"])
+            for side in p:
+                for w in p[side]:
+                    self.assertGreater(w.duration, 0.0, (v, w.label))
+                    self.assertLessEqual(w.finger, 0.0)
+                    self.assertGreaterEqual(w.finger, T.OPEN)
         with self.assertRaises(ValueError):
             T.plans("nonsense")
         self.assertLessEqual(len(T.VARIANTS), 4)
 
     def test_timing_and_moves(self):
         for v in ("",) + T.VARIANTS:
-            t = sum(w.duration for w in T.plans(v)["right"])
-            self.assertLess(t + 3.0, 60.0, v)  # the run limit: 1,200 steps at 20 Hz
-        p = T.plans("")["right"]
+            for side, wps in T.plans(v).items():
+                t = sum(w.duration for w in wps)
+                self.assertLess(t + 3.0, 60.0, (v, side))  # the run limit: 1,200 steps at 20 Hz
+        plan = T.plans("")
+        p = plan["right"]
         grips = sum(1 for a, b in zip(p, p[1:]) if a.finger == T.OPEN and b.finger > T.OPEN)
-        self.assertEqual(grips, 2)  # the bar (to slide and turn it up), then the front post (to walk it standing)
-        # 5 s or more of hands-off waiting at the end, and the let-go past the balance angle
-        self.assertGreaterEqual(p[-1].duration, 5.0)
+        self.assertEqual(grips, 1)  # the bar (to slide and turn it up); the iron is never gripped standing
         for w in p:
             self.assertAlmostEqual(float(w.yaw), 0.0)  # yaw 0 throughout: the pads close along y
+        # both plans end together, the last 4 s or more hands off
+        self.assertAlmostEqual(sum(w.duration for w in p), sum(w.duration for w in plan["left"]), places=6)
+        self.assertGreaterEqual(plan["left"][-1].duration, 4.0)
+        self.assertEqual(plan["left"][-1].finger, T.OPEN)
+        # the left hand starts down only once the right is parked
+        t_park = sum(w.duration for w in p[:next(i for i, w in enumerate(p) if w.label.startswith("park")) + 1])
+        left = plan["left"]
+        i = next(i for i, w in enumerate(left) if w.label.startswith("over the iron's"))
+        self.assertGreaterEqual(sum(w.duration for w in left[:i]), t_park)
 
-    def test_walk_is_along_the_pinch_axis_and_level(self):
-        p = T.plans("")["right"]
-        i0 = next(i for i, w in enumerate(p) if w.label.startswith("grip the front post"))
-        i1 = next(i for i, w in enumerate(p) if w.label == "let go")
-        xs = {round(w.pos[0], 6) for w in p[i0:i1 + 1]}
-        self.assertEqual(len(xs), 1)  # no move in x while it is held standing: it is never pushed or pulled
-        zs = [w.pos[2] - L.TOP for w in p[i0:i1 + 1]]
-        self.assertLess(max(zs) - min(zs), 0.0075)  # level to the rest's 5 mm step and the 2 mm lift
-        self.assertAlmostEqual(p[i1].pos[1], T.END_SPOT[1], places=6)
+    def test_push_is_low_level_and_along_y(self):
+        p = T.plans("")["left"]
+        i0 = next(i for i, w in enumerate(p) if w.label.startswith("down beside the heel block"))
+        i1 = next(i for i, w in enumerate(p) if w.label == "hold")
+        xs = {round(w.pos[0], 9) for w in p[i0:i1 + 1]}
+        zs = {round(w.pos[2], 9) for w in p[i0:i1 + 1]}
+        self.assertEqual((len(xs), len(zs)), (1, 1))  # along y only, at one height
+        ys = [w.pos[1] for w in p[i0:i1 + 1]]
+        self.assertTrue(all(b <= a for a, b in zip(ys, ys[1:])))
+        for w in p[i0 - 1:i1 + 3]:
+            self.assertEqual(w.finger, T.GRIP_PUSH)  # one closed block all the time it is near the iron
+            self.assertAlmostEqual(math.degrees(math.asin(-np.asarray(w.yaw.rotation)[1, 2])), T.PUSH_ROLL, places=6)
+        # the face's leading bottom edge at PUSH_Z over the table
+        a = np.asarray(p[i1].yaw.rotation)[:, 2]
+        tcp = np.array(p[i1].pos)
+        n = np.array([0.0, -1.0, 0.0]) - (-a[1]) * a
+        face = tcp + T.PAD_TIP * a + T.PAD_FACE * n / np.linalg.norm(n)
+        self.assertAlmostEqual(face[2] - L.TOP, T.PUSH_Z, places=9)
+        self.assertAlmostEqual(face[1], T.heel_mid_to_face(T.HEEL_END_Y), places=9)
 
     def test_flat_moves_stay_on_the_rest(self):
         # every waypoint before the turn-up keeps the heel corner over the rest
@@ -489,6 +564,65 @@ class Demo(unittest.TestCase):
                 heel_x = w.pos[0] - T.G_LOCAL[0] * L.MM
                 self.assertTrue(L.REST_X0 <= heel_x <= L.REST_X1, w.label)
                 self.assertTrue(L.REST_Y0 <= w.pos[1] <= L.REST_Y1, w.label)
+
+    def test_push_follows_the_gpu_standing_pose(self):
+        # GPU jobs 20261115T130330 and 20261115T163632: the iron stood at heel (274.3, -109.4), heading -1.7, after
+        # the turn-up. The block comes down 15 mm off that side, centred on the depth of the centre of mass
+        hx, hy, hd = T.stand_pose()
+        self.assertAlmostEqual(hx, 0.2743, places=4)
+        self.assertAlmostEqual(hy, -0.1094, places=4)
+        s = iron((hx, hy), L.REST_TOP, 90.0, hd)
+        p = T.plans("")["left"]
+        w = next(w for w in p if w.label.startswith("down beside the heel block"))
+        a = np.asarray(w.yaw.rotation)[:, 2]
+        tips = np.array(w.pos) + T.PAD_TIP * a
+        self.assertAlmostEqual(tips[0], hx - T.PUSH_DEPTH * math.cos(hd), places=9)
+        gap = s.distance(tips[None, :] + np.array([[0.0, -T.PAD_FACE, 0.0]]))[0]
+        self.assertAlmostEqual(float(gap), 0.015, delta=0.002)
+        # the end: the heel's middle 85 mm inside the right-hand end, 64 mm or more from the zone's x edges
+        mid = iron((hx, T.HEEL_END_Y), L.MAT_TOP, 90.0, hd).to_world(L.HEEL_CENTRE * L.MM)
+        self.assertLess(T.HEEL_END_Y, L.ZONE_Y1 - 0.080)
+        self.assertGreater(mid[0] - L.ZONE_X0, 0.060)
+
+    def test_parked_hands_are_clear(self):
+        # the right hand parked during the push and both hands at the end: 5 cm or more (plus 5 mm) from the iron
+        # wherever the push leaves it
+        hx, _, _ = T.stand_pose()
+        for home, ys in ((T.PARK, (-0.11, -0.23, -0.30, -0.42)), (T.LEFT_HOME, (-0.11, -0.23, -0.30, -0.42)),
+                         (T.HOME, (-0.23, -0.30, -0.42))):  # HOME: the variants' (none stands it on the rest)
+            h = np.array(T._home(home))
+            arm = (h, h - np.array([0.0, 0.0, 0.013]), 1.0)
+            for x in (hx - 0.010, hx + 0.030):
+                for y in ys:
+                    for yaw in (-8.0, 8.0):
+                        s = iron((x, y), L.MAT_TOP, 90.0, math.radians(yaw))
+                        self.assertGreater(rigstate.zone_gap(arm, s.distance), L.CLEAR_M + 0.005, (home, x, y))
+
+    def test_pushing_arm_body_clear_of_the_iron(self):
+        # the left arm's gripper and links (yamkin's collision capsules, fitted to the simulator's hulls within
+        # 3 mm) 10 mm or more from the standing iron's boxes at every push waypoint, the iron where the face is
+        if OFFLINE is None:
+            self.skipTest("tools/offline not found")
+        import yamkin as K
+
+        hx, hy, hd = T.stand_pose()
+        wall = T.side_wall_y((hx, hy), hd)
+        q = None
+        for w in T.plans("")["left"]:
+            if not hasattr(w.yaw, "rotation"):
+                continue
+            q, pe, _ = K.arm().solve(np.array(w.pos), K.matrix_to_quat_xyzw(w.yaw.rotation), q,
+                                     K.BASES["station"]["left"], iters=400)
+            self.assertLess(pe, 1e-3, w.label)
+            a = np.asarray(w.yaw.rotation)[:, 2]
+            face_y = float(w.pos[1] + T.PAD_TIP * a[1]) - T.PAD_FACE
+            y = min(hy, hy + face_y - wall)
+            s = iron((hx, y), L.REST_TOP if y > L.REST_Y0 else L.MAT_TOP, 90.0, hd)
+            for link, p0, p1, r in K.arm().capsules(q, K.BASES["station"]["left"], 0.0):
+                if link in ("tip_left", "tip_right"):
+                    continue  # the pads: see test_push_room (the capsules fitted to the finger hulls are too fat)
+                pts = p0[None, :] + np.linspace(0.0, 1.0, 12)[:, None] * (p1 - p0)[None, :]
+                self.assertGreater(float(np.min(s.distance(pts))) - r, 0.010, (w.label, link))
 
     def test_pitched_grips_are_honoured(self):
         w = next(w for w in T.plans("")["right"] if w.label.startswith("hold at 88"))
@@ -502,7 +636,7 @@ class Demo(unittest.TestCase):
             os.environ["DEMO_IDLE_ARM"] = "left"
             self.assertEqual(sorted(T.demo()), ["right"])
             os.environ["DEMO_IDLE_ARM"] = "right"
-            self.assertEqual(T.demo(), {})
+            self.assertEqual(sorted(T.demo()), ["left"])
             os.environ.pop("DEMO_IDLE_ARM")
             os.environ["DEMO_HOLD_ONLY"] = "1"
             self.assertEqual(T.demo(), {})
@@ -529,8 +663,10 @@ class CheckTask(unittest.TestCase):
         self.assertEqual(rep["fails"], [])
 
     def test_idle_arms(self):
-        self.assertEqual(self._check(DEMO_IDLE_ARM="left")["playback"]["proxy"]["predicted_task_score"], 1.0)
-        self.assertEqual(self._check(DEMO_IDLE_ARM="right")["playback"]["proxy"]["predicted_task_score"], 0.25)
+        # the right arm alone stands it on its heel on the rest (0.5); the left alone pushes the lying iron off the
+        # rest onto the cover (0)
+        self.assertEqual(self._check(DEMO_IDLE_ARM="left")["playback"]["proxy"]["predicted_task_score"], 0.5)
+        self.assertEqual(self._check(DEMO_IDLE_ARM="right")["playback"]["proxy"]["predicted_task_score"], 0.0)
 
     def test_variants(self):
         want = {"flat": 0.0, "half": 0.5, "untouched": 0.25, "slide": 0.0}
