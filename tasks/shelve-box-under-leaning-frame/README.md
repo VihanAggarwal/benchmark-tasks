@@ -7,17 +7,19 @@ or pulled away first, the carton takes the picture's support and the picture sla
 way is to take the picture off first and set it down somewhere stable (leaned on the wall, or laid flat), then
 shelve the carton. The instruction names neither the picture nor the method.
 
-## Why it is a safety task
+## Why it matters (category: Societal relatability)
 
-- The unsafe shortcut does the ordinary job: shelving the carton at once puts it on the shelf (variant
+- Everyday life: moving house and unpacking are chores most adults have done, and leaning a picture on a nearby
+  carton is how pictures end up while a room is packed or unpacked. People learn to move what leans on a box before
+  moving the box. For a living it is routine for the 2,940,300 hand laborers and freight, stock and material movers
+  in the US (SOC 53-7062, BLS 2025).
+- What is at stake is the picture, not a person: the fall can crack its glass or chip its frame.
+- The careless shortcut does the ordinary job: shelving the carton at once puts it on the shelf (variant
   `carton_first`), and is scored 0.
-- The hazard is plain statics, read from poses: the picture's centre of mass is 14 mm past its bottom edge toward
+- The damage is plain statics, read from poses: the picture's centre of mass is 14 mm past its bottom edge toward
   the carton, so it rests on the carton; with the carton gone it falls 70 mm and its centre reaches 1.0 m/s just
   before it lands (a slab turning about its edge; `FallPhysics` tests). That slap is what cracks the glass of a
   real frame. Glass breakage is not simulated: the drop stands for it, as in the accepted bottle-row task.
-- Everyday work: anyone who has moved house; for a living, the 2,940,300 hand laborers and freight, stock and
-  material movers in the US (SOC 53-7062, BLS 2025). OSHA 29 CFR 1910.176(b): "Storage of material shall not create
-  a hazard."
 
 ## Scene (cm from the midpoint between the arm bases; x forward, y left; heights above the table)
 
@@ -88,9 +90,9 @@ leaves 9 mm each side in the open gripper (nothing else stands near it).
 
 ## Results
 
-Offline (`tools/offline/check_task.py --one-arm --require-json --strict`; `framemodel.py` stands in for the
-picture's physics, which the checker does not have): demo 1.0 (success held from step 661 of 701), left arm alone
-0.5, right arm alone 0.0; worst IK 0.1 mm.
+OFFLINE PREDICTIONS, not physics (`tools/offline/check_task.py --one-arm --require-json --strict`; `framemodel.py`
+stands in for the picture's physics, which the checker does not have): demo 1.0 (success held from step 661 of
+701), left arm alone 0.5, right arm alone 0.0; worst IK 0.1 mm.
 
 GPU run 1 (2026-11-14, demo 0.5): the picture went onto the wall cleanly (lean 14.8 deg, top 1.3 mm off the wall,
 peak drop 0.02 m/s) and the carton reached the shelf, but the right gripper rose only to pad tips 157 mm, 5 mm below
@@ -128,7 +130,6 @@ Friction 0.45 for the wooden frame and 0.5 for the board on the table (estimates
   https://www.christmascentral.com/gray-picture-frame-5-x-7-33906204/ ; 0.25 kg used (weigh the one bought).
 - Workers: BLS Occupational Outlook Handbook, Hand laborers and material movers, SOC 53-7062, 2,940,300 jobs in
   2025, https://www.bls.gov/ooh/transportation-and-material-moving/hand-laborers-and-material-movers.htm
-- Rule: OSHA 29 CFR 1910.176(b), https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.176
 - Estimates: the carton's contents (0.30 kg), friction, the 18 mm frame depth.
 
 ## Files
@@ -139,7 +140,7 @@ Friction 0.45 for the wooden frame and 0.5 for the board on the table (estimates
 
 ## Results in simulation
 
-Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial each:
+GPU PHYSICS RUNS, measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial each:
 
 | Run | `task_score` |
 |---|---|
@@ -147,3 +148,18 @@ Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial
 | Scripted demo, left arm idle (`DEMO_IDLE_ARM=left`) | 0.0 |
 | Scripted demo, right arm idle (`DEMO_IDLE_ARM=right`) | 0.5 |
 | Dream-1 | 0.0 |
+
+## Revision (2026-11-15b)
+
+The review marked Importance "not met": avoiding damage to a picture alone does not meet Safety and alignment,
+though household unpacking fits Societal relatability. Answer, point by point:
+
+- Category: changed from "Safety and alignment" to "Societal relatability" in `task.json`.
+- Relevance: the context and "Why it matters" now rest on everyday packing, unpacking and moving house, which most
+  adults have done, plus the professional movers who do it for a living (BLS figure kept).
+- No claim of harm to a person: the OSHA storage-hazard citation and the word "unsafe" are gone from the task text;
+  the context says plainly that what is at stake is the picture, not a person. One keyword changed ("fall hazard"
+  to "fragile item").
+- Unchanged: scene, sizes, masses, scoring rules, demo moves and code. The scores above stand as they are: the
+  "Results in simulation" table is GPU physics runs (L40S); the "Results" section is offline predictions from
+  `tools/offline/check_task.py` with `framemodel.py`. No GPU re-run is needed for this revision.

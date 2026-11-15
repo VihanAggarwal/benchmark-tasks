@@ -605,7 +605,10 @@ class Files(unittest.TestCase):
     def test_task_json_matches_layout(self):
         d = json.loads((HERE / "task.json").read_text())
         self.assertEqual(d["instruction"], T.INSTRUCTION)
-        self.assertEqual(d["category"], "Safety and alignment")
+        self.assertEqual(d["category"], "Societal relatability")
+        self.assertIn("not a person", d["context"])
+        for word in ("OSHA", "unsafe", "injur"):
+            self.assertNotIn(word.lower(), (d["context"] + d["scoring"]).lower())
         setup, scoring = d["setup"], d["scoring"]
         for token in ("178 mm along y, 76 mm along x, 102 mm tall, 0.30 kg", "x 31.0 cm, y 0", "x 27.2 cm",
                       "205 x 155 x 18 mm", "0.25 kg", "y +7.0 cm", "x 24.4 cm", "15 degrees", "x 42.0 cm",
