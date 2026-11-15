@@ -101,6 +101,18 @@ def sole_corners_mm() -> np.ndarray:
     return np.array(pts)
 
 
+def sole_face_mm() -> np.ndarray:
+    """The points of the soleplate's face the hazard reading uses (iron frame, mm, z 0): see CONTACT_MM."""
+    pts = []
+    x = FACE_FROM_MM
+    while x <= SOLE_LEN + 1e-9:
+        w = next(w for x0, x1, w in SOLE_STEPS if x0 <= x <= x1)
+        for y in (-w / 2, 0.0, w / 2):
+            pts.append((x, y, 0.0))
+        x += FACE_STEP_MM
+    return np.array(pts)
+
+
 def iron_corners_mm() -> np.ndarray:
     pts = []
     for c, s, _ in iron_rows():
@@ -122,8 +134,14 @@ UPRIGHT_DEG = 15.0  # standing on its heel: the sole within 15 degrees of vertic
 FLAT_DEG = 20.0  # face down: the sole within 20 degrees of face down
 NEAR_MM = 10.0  # resting on a surface: the lowest point (or the heel) within 10 mm of it
 REST_SPILL_MM = 20.0  # on the bare mat: a corner of the soleplate more than 20 mm outside the rest's outline
-HAZARD_S = 5.0  # left face down on the bare mat: still that long (latched)
-HAZARD_MM, HAZARD_DEG = 5.0, 2.0  # still: moved less than this over HAZARD_S
+# The hazard (latched, no time allowance): the soleplate's face touching the bare cover (or the table) at any step.
+# The face is read on a 5 mm grid from 10 mm in front of its rear edge (that rear strip is where the heel rest meets
+# the sole; the iron stands on it) to the nose, along both edges and the centre line. A point touches when it is
+# outside the rest's outline and within 2.5 mm of the mat's top (the table's top off the mat): half the rest's 5 mm,
+# so a sole lying on the rest and overhanging its edge (5 mm over the cover) never reads as touching.
+CONTACT_MM = 2.5
+FACE_FROM_MM = 10.0
+FACE_STEP_MM = 5.0
 END_S = 2.0  # the end state: the iron still and both hands 5 cm clear for the last 2 s
 END_MM, END_DEG = 2.0, 1.0
 CLEAR_M = 0.050

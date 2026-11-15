@@ -5,9 +5,10 @@ rigid body and nothing here runs.
 What this file assumes is what the design claims, so the offline prediction is the design's, not a measurement. It
 moves the iron from the arms' COMMANDED TCP, pad-tip point and opening (rigstate's offline feed):
 
-- a gripper holds the iron once its pad tips have straddled the handle's grip bar open (the pad-tip point within
-  6 mm of the bar's middle plane, 10 mm or more inside its ends, at the bar's height) and then close below the bar's
-  28 mm; it lets go once open wider than 29.5 mm;
+- a gripper holds the iron once its pad tips have straddled the handle open (the pad-tip point within 6 mm of the
+  handle's middle plane, inside the grip bar 10 mm or more from its ends at the bar's height, or inside the front
+  post (the top of the handle loop when the iron stands on its heel) 10 mm or more from its ends) and then close
+  below the handle's 28 mm; it lets go once open wider than 29.5 mm;
 - held, the iron hangs on the pinch as on a pin across its bar (the GPU run of 2026-11-14 showed the pads do not
   resist a turn about their own axis): its heading and roll stay as gripped, and its nose pitch is set by where the
   pin is, not by the hand's pitch. With the pin no higher over what the heel corner is over than on the flat iron,
@@ -62,8 +63,13 @@ class OfflineIron:
     # -- helpers ------------------------------------------------------------------------------------------------------
     def _near_bar(self, tips) -> bool:
         p = self.r.T @ (np.asarray(tips, dtype=float) - self.o) / L.MM
+        if abs(p[1]) > 6.0:
+            return False
         x0, x1, z0, z1 = L.BAR
-        return x0 + 10.0 <= p[0] <= x1 - 10.0 and abs(p[1]) <= 6.0 and z0 - 2.0 <= p[2] <= z1 + 2.0
+        if x0 + 10.0 <= p[0] <= x1 - 10.0 and z0 - 2.0 <= p[2] <= z1 + 2.0:
+            return True
+        x0, x1, z0, z1 = L.FRONT_POST
+        return x0 - 2.0 <= p[0] <= x1 + 2.0 and z0 + 10.0 <= p[2] <= z1 - 10.0
 
     def _lift_clear(self) -> None:
         """Raise the iron so no corner is inside what lies under it."""
