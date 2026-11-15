@@ -48,7 +48,7 @@ INSTRUCTION = "Set this jigsaw's shoe to a 45 degree bevel and lock it there, th
 
 YELLOW = (0.93, 0.72, 0.05)
 BLACK = (0.08, 0.08, 0.08)
-STEEL = (0.62, 0.63, 0.65)
+ALUMINIUM = (0.62, 0.63, 0.65)  # the shoe: aluminium (maker's manual)
 RUBBER = (0.18, 0.19, 0.20)
 BODY_COLOURS = {"housing": YELLOW, "shoulder": YELLOW, "nose": BLACK, "battery_mount": BLACK, "rear_post": YELLOW,
                 "front_post": YELLOW, "handle": BLACK, "lever_boss": BLACK}
@@ -62,7 +62,7 @@ def _box(b, colour):
 BODY_SHAPES = [_box(b, BODY_COLOURS[n]) for n, b in L.BODY_BOXES.items()]
 CARRIAGE = mk.slider("slide", "X", [_box(L.CARRIAGE_BOX, BLACK)], upper=L.SLIDE_TRAVEL * L.MM, mass=L.CARRIAGE_MASS,
                      spring=L.SLIDE_K, damping=L.SLIDE_D)
-SHOE = mk.hinge("bevel", "X", tuple(v * L.MM for v in L.PIVOT), [_box(b, STEEL) for b in L.SHOE_BOXES.values()],
+SHOE = mk.hinge("bevel", "X", tuple(v * L.MM for v in L.PIVOT), [_box(b, ALUMINIUM) for b in L.SHOE_BOXES.values()],
                 lower=-math.radians(L.BEVEL_MAX_DEG), upper=math.radians(L.BEVEL_MAX_DEG), mass=L.SHOE_MASS,
                 spring=L.BEVEL_K, damping=L.BEVEL_D, parent="slide")
 LEVER = mk.hinge("lever", "Y", tuple(v * L.MM for v in L.LEVER_PIVOT), [_box(b, BLACK) for b in L.LEVER_BOXES.values()],

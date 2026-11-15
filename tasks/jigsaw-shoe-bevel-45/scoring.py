@@ -12,8 +12,11 @@ the distance from any point to the saw's shapes.
     HANDS OFF     on every step of the last 2 s both grippers' finger zones at least 50 mm from every shape of the saw
                   (unreadable arms: not off)
     STILL         over the last 2 s the bevel moved 0.5 deg or less, the lever 2 deg or less and the body 2 mm or less
-    LATCHED ZERO  the body moved 30 mm or more from where it lay, turned 15 deg or more up off its side, or any part
-                  went 5 cm below the bench top (pushed off its place, knocked over, dropped)
+    LATCHED ZERO  only clearly unsafe outcomes: the saw dropped or off the bench (any part 5 cm or more below the
+                  bench top, the body 5 cm or more below where it lay, or its reference point, the shoe's pivot, past
+                  the bench top's edge) or fallen over (the side that faced up turned 60 deg or more from vertical:
+                  onto its handle, its shoe or an end). Sliding or turning the saw on the bench is not penalised
+                  (revision 2026-11-15: the 30 mm and 15 deg latches are gone)
 
     1.0    HANDS OFF, STILL, ANGLE 45, CLAMPED            (success; the trial ends once it has held 1 s)
     0.75   HANDS OFF, STILL, ANGLE 45, not clamped
@@ -90,13 +93,25 @@ def body_tilt_deg(r: Reading) -> float:
     return math.degrees(math.acos(max(-1.0, min(1.0, float(r.rot[2, 2])))))
 
 
+def body_drop_mm(r: Reading) -> float:
+    return (L.ORIGIN_M[2] - float(r.origin[2])) / L.MM
+
+
+def off_bench(r: Reading) -> bool:
+    x, y = float(r.origin[0]), float(r.origin[1])
+    return not (L.BENCH_X_M[0] <= x <= L.BENCH_X_M[1] and L.BENCH_Y_M[0] <= y <= L.BENCH_Y_M[1])
+
+
 def wrecked(r: Reading) -> str:
-    if body_moved_mm(r) >= L.OFF_MAT_MM - L.EPS:
-        return "the saw was pushed 30 mm or more from where it lay"
+    """Why the trial is latched at zero: only the saw fallen over, off the bench or dropped. Moving it is fine."""
     if body_tilt_deg(r) >= L.TIP_DEG - L.EPS:
-        return "the saw was turned up off its side"
-    if r.low_z < L.TOP - L.DROP_M:
-        return "the saw left the bench"
+        return "the saw fell over (turned 60 deg or more from lying on its side)"
+    if off_bench(r):
+        return "the saw was pushed off the bench"
+    if r.low_z <= L.TOP - L.DROP_M + L.EPS:
+        return "the saw was dropped (a part 5 cm or more below the bench top)"
+    if body_drop_mm(r) >= L.BODY_DROP_M / L.MM - L.EPS:
+        return "the saw was dropped (its body 5 cm or more below where it lay)"
     return ""
 
 
@@ -192,6 +207,7 @@ class Tracker:
                    "milestone": self.milestone, "hands_off_now": off, "hands_off_2s": hands_off, "still_2s": still,
                    "motion": motion, "gap_mm": None if gap is None else round(gap / L.MM, 1),
                    "body_moved_mm": round(body_moved_mm(r), 2), "body_tilt_deg": round(body_tilt_deg(r), 2),
+                   "body_drop_mm": round(body_drop_mm(r), 2),
                    "latched": self.latched}
         self.last = Result(score, score >= 1.0, details)
         return self.last

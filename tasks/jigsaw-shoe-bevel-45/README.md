@@ -8,6 +8,10 @@ GPU results (2026-11-14, L40S): the scripted demo scores 1.0 (see Results in sim
 it 0.0: a closed-finger push on the lever's tab wedged, so the shoe stayed clamped. The demo now pinches the tab and
 swings the lever along its arc instead.
 
+Revised 2026-11-15 after review (see "Revision (2026-11-15)" at the end): moving the saw on the bench is no longer
+penalised; only dropping it, pushing it off the bench or letting it fall over latches a zero. The saw's figures were
+re-checked against the maker's manual, datasheet and service parts list.
+
 ## Why it is hard
 
 1. **The lever unlocks the shoe, but the shoe still does not tilt.** The maker's manual: "pull the keyless bevel
@@ -34,8 +38,11 @@ Conditions (real trial in brackets):
 - Still: over the last 2 s the bevel changes 0.5 degree or less, the lever 2 degrees or less, the body 2 mm or less.
 - Unlocked off the stop: at some point the lever out (10 degrees or more) while the shoe is 6 mm or more forward of
   its 0 degree stop (a pencil mark on the shoe against the gear housing, video).
-- Latched zero: the saw pushed 30 mm or more from its tape marks, turned 15 degrees or more up off its side, or
-  dropped.
+- Latched zero, only for clearly unsafe outcomes: the saw dropped or off the bench (any part 5 cm or more below the
+  bench top, its body 5 cm or more below where it lay, or its blade line, the shoe's pivot, past the bench's edge),
+  or fallen over (the side that faced up turned 60 degrees or more from vertical: onto its handle, its shoe or an
+  end; protractor on the side video). Sliding or turning the saw on the bench is not penalised: a saw moved 40 mm and
+  turned 20 degrees with its shoe locked at 45 scores 1.0.
 
 | Outcome | Score |
 |---|---|
@@ -114,9 +121,12 @@ shoe's edge are from the right pad tips (about (0, 0, 5) and (0, 0, 4) while hel
   it rests at 60, each pull at most 0.05 N m.
 - Rigid boxes. The shoe, its carriage and the lever are links of one articulation and do not collide with the body;
   their shapes are laid out so they do not overlap it in the demo's range.
-- The real DCS331's lever swings to one side; which side is not in the manual. The layout assumes the saw's right
-  (up, as it lies on its left side). If it swings to the left on the real saw, the real trial lays the saw on its
-  right side and mirrors the layout.
+- The real DCS331's lever is a bent rod ending in a round knob (manual, Fig. A and Fig. G); here it is a flat bar
+  with a flat finger tab. Its place and swing match (between shoe and motor housing, handle end at the rear,
+  swinging to the side in the shoe's plane); its exact size, height, travel and knob position are estimates (see
+  Revision). Which side it swings to is not settled by the manual's figures (the rod shows from both sides). The
+  layout assumes the saw's right (up, as it lies on its left side). If it swings to the left on the real saw, the
+  real trial lays the saw on its right side and mirrors the layout.
 
 ## Sources
 
@@ -124,16 +134,35 @@ shoe's edge are from the right pad tips (about (0, 0, 5) and (0, 0, 4) while hel
   (g) forward to release it from the 0 degree positive stop position"; detents at 15, 30 and 45 degrees either way;
   "push the keyless bevel lever back under the body of the jigsaw":
   https://www.manualslib.com/manual/1084350/Dewalt-Dcs331.html?page=16
-- DeWalt DCS331B product page (keyless shoe bevel with detents at 0, 15, 30 and 45 degrees):
+- DeWalt DCS331B product page (all-metal keyless shoe bevel with detents at 0, 15, 30 and 45 degrees):
   https://www.dewalt.com/product/dcs331b/en-us-20v-max-cordless-jig-saw-tool-only
-- Tool weight 5.4 lb, 3.88 in across (retailer listing): https://usatoolsinc.com/20v-max-jig-saw-tool-only-dcs331b
-- Length 11.25 in and 3.9 in (retailer listings; others give 10.5 in: they disagree, so the 286 mm is an estimate
-  at the long end)
+- DeWalt DCS331 manual (types 3 to 10, from the maker's service site): technical data "Weight (without battery pack)
+  2.3 kg", bevel 0 to 45 degrees left and right; "aluminum shoe"; Fig. A (the saw from its left, the bevel lever 6
+  with its knob) and Fig. G (unlocking, sliding):
+  https://service.dewalt.co.uk/i/DEWALT/GLOBALBOM/XJ/DCS331/3/Instruction_Manual/EN/DCS331_T3-T10_GB_XE.pdf
+- DeWalt DCS331 type 3 service parts list: item 85 shoe 581263-00, item 86 lever 493248-00 and lever lock
+  495746-00, item 89 clamp 496996-00, items 90 to 92 bolts and washer, item 88 plunger; no dimensions or forces:
+  https://service.dewalt.co.uk/BD/IE/en-IE/Part/PartsForProduct?productId=36805 (product page with the weight,
+  2.3 kg: https://service.dewalt.co.uk/BD/IE/en-IE/Product/ProductDetail?id=36805)
+- DeWalt DCS331N-XJ datasheet (the same saw, EU bare unit): length 305 mm, height 215 mm, weight 2.3 kg, stroke
+  26 mm, bevel 0 to 45 degrees:
+  https://assets.cef.co.uk/downloads/pdg/dewalt_dcs331n-xj_datasheet/dewalt_dcs331n-xj_datasheet.pdf
+- Tool weight 5.4 lb, 3.88 in across (US retailer listing): https://usatoolsinc.com/20v-max-jig-saw-tool-only-dcs331b
+- Length 11.25 in, 3.9 in (US retailer listings, others give 10.5 in), for example:
+  https://www.truevalue.com/product/max-cordless-jig-saw-20-volt-tool-only/
 - Carpenters, SOC 47-2031, 889,700 jobs in 2025: https://www.bls.gov/ooh/construction-and-extraction/carpenters.htm
 
-Estimates (not measured on a saw): the shoe's size (170 x 90 mm, 4 mm plate, 6 mm ribs) and mass (250 g), the lever's
-size, place, travel and tab, the 6 mm slide off the stop and the 10 mm slot, the gap between shoe and housing, the
-handle's shape, every force of the rule. The real trial measures them on the saw first.
+Sourced and used: 5.4 lb (2.45 kg; the maker's EU figure is 2.3 kg, 6 percent less, and the US figure is kept since
+the task names the US 20V MAX tool); 215 mm from shoe to handle top (the model's handle top is at 215 mm); 99 mm
+across; an aluminium shoe; the detents, stop, unlock and lock wording. Length: 286 mm (US) against 305 mm (EU sheet);
+the model keeps 286 mm, and the extra length would only lengthen the rear block that nothing touches.
+
+Estimates (no published figure; not measured on a saw): the shoe's width (90 mm), plate and ribs and its mass (250 g:
+the modelled plate and ribs in aluminium weigh 220 g, the real casting has bosses); the lever's size, height, travel
+and the tab standing for its knob; the 6 mm slide off the stop and the 10 mm slot; the handle's shape; every force of
+the rule. Scaled from the manual's Fig. A by the 215 mm height (a perspective line drawing, so only to about 10 mm):
+the shoe about 170 mm long (as modelled), the knob about 15 mm long and 8 mm across at the shoe's rear end. The
+real trial measures them on the saw first.
 
 ## Real build and reset
 
@@ -163,3 +192,53 @@ Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial
 | Scripted demo, left arm idle (`DEMO_IDLE_ARM=left`) | 1.0 |
 | Scripted demo, right arm idle (`DEMO_IDLE_ARM=right`) | 0.0 |
 | Dream-1 | 0.0 |
+
+## Revision (2026-11-15)
+
+The review came back "Not accepted (revisable)". Each point and what changed:
+
+**Scoring: "A 30 mm translation or 15-degree reorientation permanently scores zero even when the saw is safely set
+to the requested angle."** Agreed; removed. `scoring.py` no longer latches a zero for the saw body moving 30 mm or
+turning 15 degrees, or for any other move on the bench: a saw slid or turned while it is worked, then left with its
+shoe locked at 45, scores 1.0 like one that never moved. The 2 s "still" window (body 2 mm or less) still applies,
+so the score is read on a saw at rest. Tests: `test_safe_repositioning_is_not_penalised` (slid 40 mm, turned 20
+degrees, tilted 20 degrees, and combinations: 1.0) and `test_moved_during_the_trial_then_locked_scores_one` (pushed
+40 mm and turned 20 degrees while unlocked, then locked at 45: 1.0, nothing latched).
+
+**"Retain a penalty for dropping the saw or other clearly unsafe outcomes."** Kept, and only those latch a zero for
+the rest of the trial: the saw dropped (any part 5 cm or more below the bench top, or its body 5 cm or more below
+where it lay), pushed off the bench (its blade line past the bench top's edge), or fallen over onto its handle, its
+shoe (blade side) or an end (the side that faced up turned 60 degrees or more from vertical; lying on its handle or
+shoe it would be near 90, so 60 is well past any tilt a hand sets down on purpose and short of the fall). Tests:
+`test_pushed_off_the_bench_is_a_latched_zero` (0 latched, even if put back locked at 45),
+`test_dropped_is_a_latched_zero`, `test_fallen_over_is_a_latched_zero` (60 and 90 degrees either way; 59 is not).
+The rest of the ladder (1.0, 0.75, 0.5, 0.25, 0) is unchanged. The `scoring` field and the Scoring section above say
+the same.
+
+**Flag: "Verify the estimated lever geometry, access and forces against the specified real jigsaw."** Re-checked
+against the maker's DCS331 manual (types 3 to 10, Fig. A and Fig. G), its service parts list and the maker's EU
+datasheet (Sources). What they settle:
+
+- Agrees with the model: the bevel lever lies in the gap between the shoe and the motor housing, its handle end is
+  at the rear and it swings to the side in the plane of the shoe to unlock and back under the body to lock (Fig. G);
+  the saw is 215 mm from shoe to handle top (datasheet), as modelled; scaled by that height, Fig. A shows a shoe
+  about 170 mm long, as modelled. The parts list has a separate lever (493248-00) with a lever lock and a clamp,
+  consistent with a cam lever clamping the shoe.
+- Corrected: the shoe is aluminium (manual: "aluminum shoe"), not steel. Its mass stays 250 g (the modelled plate and
+  ribs weigh 220 g in aluminium; the real casting has bosses). The text and the shoe's colour name say aluminium;
+  no size or mass changed.
+- Differences that stay estimates, said so in `fidelity`: the real lever is a bent rod ending in a round knob, about
+  15 mm long and 8 mm across, at the shoe's rear end (Fig. A, a perspective line drawing, so only to about 10 mm);
+  the model has a flat bar with a 10 x 6 mm tab about 35 mm further back. Fig. G does not show the travel in a
+  measurable view; 60 degrees stays an estimate. Which side the knob swings to is not settled by the figures (the
+  rod shows from both sides of the saw); the layout keeps the saw's right and the real trial mirrors it if needed.
+  None of these were changed to suit the robot; they are left as built until the real saw is measured.
+- Forces: the manual, the datasheet and the parts list give none. The rule's figures (detent 0.03 N m, lever cam
+  0.05 N m, clamp 5 N for 0.6 degree) stay estimates; the real trial measures, with the 10 N spring scale, the pull
+  on the knob to unlock, the push to slide the shoe off its stop, the push through each detent and the 5 N clamp
+  check before the first trial.
+- Length and weight: the maker's EU datasheet gives 305 mm and 2.3 kg, the US listings 11.25 in (286 mm) and 5.4 lb
+  (2.45 kg). The model keeps the US figures (the task names the US 20V MAX tool) and the README lists both.
+
+The demo is unchanged (no test needed a change), so the GPU scores above (demo 1.0, left arm idle 1.0, right arm
+idle 0.0, Dream-1 0.0) stand for the same moves; a GPU re-run of the revised scorer is queued to confirm them.

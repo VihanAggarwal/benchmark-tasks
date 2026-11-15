@@ -8,12 +8,16 @@ Saw frame B (mm in this file, metres where named _M): x along the saw (+ toward 
 (working) face toward the handle, z up from the mat's top face. B is world-aligned (yaw 0) and its origin is at
 ORIGIN_M. The bevel pivot is on the shoe's working face at the blade's line: (0, 0, Z_C).
 
-Sourced (README, Sources): bare-tool mass 5.4 lb (2.45 kg) and length 11.25 in (286 mm) from the maker's product page;
-body width 3.9 in (99 mm) from the maker's Canadian page (listed there as "height"; it is the width across the
-motor housing); detents at 15, 30 and 45 degrees each way, the lever pulled to the side to unlock and pushed back
-under the body to lock, and the shoe slid forward to leave the 0 degree positive stop from the DCS331 manual.
-Everything else is an estimate (fidelity text): shoe size and mass, the split of the mass, the lever's size, place
-and travel, the slide needed to leave the stop and its travel, the handle's shape, the detent and clamp feel.
+Sourced (README, Sources): bare-tool mass 5.4 lb (2.45 kg, US listings; the maker's EU manual gives 2.3 kg); the
+height, shoe sole to handle top, 215 mm (maker's EU datasheet), which the model has; body width 3.9 in (99 mm, retailer
+listings, "height" there: it is the width across the motor housing); an aluminium shoe (maker's manual); detents at 15,
+30 and 45 degrees each way, the lever pulled to the side to unlock and pushed back under the body to lock, and the shoe
+slid forward to leave the 0 degree positive stop (DCS331 manual). Length: listings disagree (286 mm US, 305 mm on the
+maker's EU sheet); 286 mm is kept. Checked against the manual's Fig. A and Fig. G (README, Revision): the lever lies in
+the gap between shoe and motor housing, ends at the rear in a knob and swings to the side in the shoe's plane, as here;
+Fig. A scaled by the 215 mm height gives a shoe about 170 mm long, as here. Everything else is an estimate (fidelity
+text): shoe width and mass, the split of the mass, the lever's exact size, place and travel, the slide needed to leave
+the stop and its travel, the handle's shape, the detent and clamp feel.
 """
 
 from __future__ import annotations
@@ -33,13 +37,14 @@ MAT_X = (-260.0, 100.0)  # B frame
 MAT_Y = (-80.0, 240.0)
 ORIGIN_M = (0.275, -0.060, TOP + MAT_T * MM)  # B's origin in the world: the pivot's x, the shoe's face, the mat's top
 MAT_FRICTION = (1.0, 0.9)  # rubber
-SAW_FRICTION = (0.8, 0.7)  # glass-filled nylon housing on rubber; steel shoe
+SAW_FRICTION = (0.8, 0.7)  # glass-filled nylon housing on rubber; aluminium shoe
 
 # -- sourced figures -------------------------------------------------------------------------------------------------
 LB = 0.45359237
-MASS_TOTAL = 5.4 * LB  # 2.449 kg, bare tool (maker's page)
-LENGTH = 11.25 * 25.4  # 285.75 mm overall (maker's page)
-BODY_T = 3.9 * 25.4  # 99.06 mm across the motor housing (maker's Canadian page)
+MASS_TOTAL = 5.4 * LB  # 2.449 kg, bare tool (US listings; maker's EU manual: 2.3 kg)
+LENGTH = 11.25 * 25.4  # 285.75 mm overall (US listings; maker's EU sheet: 305 mm)
+BODY_T = 3.9 * 25.4  # 99.06 mm across the motor housing (retailer listings)
+HEIGHT = 215.0  # mm, shoe sole to handle top (maker's EU datasheet): the handle box's far face, below
 DETENTS_DEG = (0.0, 15.0, 30.0, 45.0)  # each way (manual); 45 is also the end of travel
 BEVEL_MAX_DEG = 45.0
 
@@ -126,9 +131,12 @@ WIN_STEPS = int(round(WINDOW_S * CONTROL_HZ))
 STILL_BEVEL_DEG = 0.5
 STILL_LEVER_DEG = 2.0
 STILL_BODY_MM = 2.0
-OFF_MAT_MM = 30.0  # the body moved this far from where it lay: pushed off its place (latched zero)
-TIP_DEG = 15.0  # the body turned up off its side this far (latched zero)
+# Latched zero only for clearly unsafe outcomes (dropped, off the bench, fallen over); moving the saw is not one.
+TIP_DEG = 60.0  # the side that faced up turned this far from vertical: fallen onto its handle, its shoe or an end
 DROP_M = 0.05  # any part this far below the bench top
+BODY_DROP_M = 0.05  # the body this far below where it lay
+BENCH_X_M = (-0.19, 0.91)  # the station table's top (world, m): the saw's reference point past it is off the bench
+BENCH_Y_M = (-0.65, 0.65)
 RESET_JUMP_M = 0.03
 EPS = 1e-9
 
