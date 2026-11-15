@@ -18,5 +18,5 @@
   "reset_notes": "Pull the lever out, tilt the shoe back to 0, slide it back into the 0 degree stop and push the lever back under the body; check the shoe will not tilt. Battery out, no blade. Lay the saw on its left side on the mat on its tape marks: front away from the robot, shoe toward the robot's right, its working face on the line y -60, blade line at x 275.",
   "fidelity": "One rule: stop, detents and clamp are drive targets (clamped: 5 N on the edge turns it 0.6 deg; detents 0.03 N m; lever cam 0.05 N m). Rigid boxes. Sourced: 5.4 lb, 215 mm high, aluminium shoe, lever place and swing. Estimated (unpublished): shoe width and mass, lever size, knob as a flat tab, 60 deg travel, 6 mm stop, 10 mm slot, all forces. Other figures keep the moves (pinch and carry on its arc, slide, tilt, press flush); a tab +-6 mm across or a stop to 10 mm needs no demo change.",
   "scores": "Dream-1 run: 0.0 (1200 steps); demo: 1.0 (1055 steps)",
-  "media": "M-HFFL6D"
+  "media": "M-9NEQH4"
 }

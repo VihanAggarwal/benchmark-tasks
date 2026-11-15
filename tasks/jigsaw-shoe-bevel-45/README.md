@@ -14,7 +14,8 @@ bench, latches a zero. The saw's figures were re-checked against every public so
 
 Which results are which: the scores under "Results in simulation" are GPU physics runs (L40S, 2026-11-14) of the same
 demo moves; everything under "Offline predictions" and every test in `tests/` is an offline prediction (our numpy
-kinematics, no physics). The 2026-11-15b scorer change has not yet been run on the GPU.
+kinematics, no physics). The current scorer (2026-11-15b, with the fall test) was run on the GPU on 2026-11-15
+(job 20261115T173551): demo 1.0 at step 1055 of 1200 (see Third revision).
 
 ## Why it is hard
 
@@ -190,11 +191,12 @@ Third-party assets: none.
 
 ## Results in simulation
 
-GPU physics runs. Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial each:
+GPU physics runs with the current scorer (job 20261115T173551, 2026-11-15). Measured on an L40S (Isaac Lab-Arena,
+object jitter 0, 20 Hz control), one trial each:
 
 | Run | `task_score` |
 |---|---|
-| Scripted demo (`demo()` as written) | 1.0 |
+| Scripted demo (`demo()` as written) | 1.0 (1055 steps) |
 | Scripted demo, left arm idle (`DEMO_IDLE_ARM=left`) | 1.0 |
 | Scripted demo, right arm idle (`DEMO_IDLE_ARM=right`) | 0.0 |
 | Dream-1 | 0.0 |
@@ -309,3 +311,22 @@ show; the real trial measures them with the 10 N spring scale before the first t
 idle 1.0, right arm idle 0.0, Dream-1 0.0) are GPU physics runs of these same moves with the earlier scorer. In those
 runs the demo never lifts or turns the saw, so the new fall test is not expected to fire (an expectation, not a
 measurement); a GPU re-run of the revised scorer will confirm the scores.
+
+## Third revision (2026-11-15c)
+
+The review came back "Not accepted (revisable)" a third time:
+
+**Feasibility (not met): "The reported full-score physics demo used an earlier scorer, while the current
+fall-detection scorer has not been tested on that run."** Agreed; done. The same demo was run on the GPU with the
+current scorer (`scoring.py` as submitted, with the fall test): job 20261115T173551, L40S, Isaac Lab-Arena, object
+jitter 0, 20 Hz control. Demo: 1.0, the run ending at step 1055 of the 1200-step limit once 1.0 had held 1 s; no
+drop, fall or off-the-bench latch fired. In the same job: left arm idle 1.0, right arm idle 0.0, Dream-1 0.0 (1200
+steps). The submitted demo video is this run. The "Results in simulation" table and `scores` in task.json now give
+these figures.
+
+**"Please measure the specified real jigsaw's lever geometry, gripper access and operating forces."** We have not
+measured a physical DCS331 and say so rather than present estimates as measurements. What is sourced and what is
+estimated is listed in Sources and in the second revision above; the real trial measures the lever's pull, the
+slide off the stop, each detent and the 5 N clamp check with the 10 N spring scale before the first trial. The
+second revision explains why the demo's moves do not depend on those figures within the stated tolerances.
+
