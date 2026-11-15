@@ -12,11 +12,13 @@ the distance from any point to the saw's shapes.
     HANDS OFF     on every step of the last 2 s both grippers' finger zones at least 50 mm from every shape of the saw
                   (unreadable arms: not off)
     STILL         over the last 2 s the bevel moved 0.5 deg or less, the lever 2 deg or less and the body 2 mm or less
-    LATCHED ZERO  only clearly unsafe outcomes: the saw dropped or off the bench (any part 5 cm or more below the
-                  bench top, the body 5 cm or more below where it lay, or its reference point, the shoe's pivot, past
-                  the bench top's edge) or fallen over (the side that faced up turned 60 deg or more from vertical:
-                  onto its handle, its shoe or an end). Sliding or turning the saw on the bench is not penalised
-                  (revision 2026-11-15: the 30 mm and 15 deg latches are gone)
+    LATCHED ZERO  only a real drop or fall, or the saw leaving the bench: any part 5 cm or more below the bench
+                  top (dropped); a corner of the body's box moving down faster than 1 m/s between two steps (falling:
+                  a free fall of 5 cm reaches 0.99 m/s; a hand setting the saw down moves it far slower); or its
+                  reference point, the shoe's pivot, past the bench top's edge (off the bench). Sliding, turning or
+                  standing the saw up on the bench is not penalised, at any angle: the end state is read from the shoe
+                  relative to the body (revision 2026-11-15: the 30 mm and 15 deg latches went; revision 2026-11-15b:
+                  the "fallen over at 60 deg" latch and the "body 5 cm below where it lay" test went too)
 
     1.0    HANDS OFF, STILL, ANGLE 45, CLAMPED            (success; the trial ends once it has held 1 s)
     0.75   HANDS OFF, STILL, ANGLE 45, not clamped
@@ -40,6 +42,11 @@ import rigstate
 
 SAW = "saw"
 JOINTS = ("slide", "bevel", "lever")
+# The eight corners of the box round every body part (B frame, m): their downward speed tells a fall.
+_LO = np.min([[b[i][0] for i in range(3)] for b in L.BODY_BOXES.values()], axis=0)
+_HI = np.max([[b[i][1] for i in range(3)] for b in L.BODY_BOXES.values()], axis=0)
+BODY_CORNERS_M = np.array([[(_LO, _HI)[i][0], (_LO, _HI)[j][1], (_LO, _HI)[k][2]]
+                           for i in (0, 1) for j in (0, 1) for k in (0, 1)]) * L.MM
 
 
 @dataclass
@@ -93,8 +100,13 @@ def body_tilt_deg(r: Reading) -> float:
     return math.degrees(math.acos(max(-1.0, min(1.0, float(r.rot[2, 2])))))
 
 
-def body_drop_mm(r: Reading) -> float:
-    return (L.ORIGIN_M[2] - float(r.origin[2])) / L.MM
+def fall_speed(prev: Reading | None, now: Reading) -> float:
+    """The fastest downward speed (m/s) of a body corner between the last step and this one (0 with no last step)."""
+    if prev is None:
+        return 0.0
+    z0 = (BODY_CORNERS_M @ prev.rot.T + prev.origin)[:, 2]
+    z1 = (BODY_CORNERS_M @ now.rot.T + now.origin)[:, 2]
+    return max(0.0, float(np.max(z0 - z1)) / L.DT)
 
 
 def off_bench(r: Reading) -> bool:
@@ -102,16 +114,15 @@ def off_bench(r: Reading) -> bool:
     return not (L.BENCH_X_M[0] <= x <= L.BENCH_X_M[1] and L.BENCH_Y_M[0] <= y <= L.BENCH_Y_M[1])
 
 
-def wrecked(r: Reading) -> str:
-    """Why the trial is latched at zero: only the saw fallen over, off the bench or dropped. Moving it is fine."""
-    if body_tilt_deg(r) >= L.TIP_DEG - L.EPS:
-        return "the saw fell over (turned 60 deg or more from lying on its side)"
+def wrecked(r: Reading, speed_down: float = 0.0) -> str:
+    """Why the trial is latched at zero: only the saw dropped, falling or off the bench. Moving or turning it,
+    standing it on its shoe included, is fine."""
     if off_bench(r):
         return "the saw was pushed off the bench"
     if r.low_z <= L.TOP - L.DROP_M + L.EPS:
         return "the saw was dropped (a part 5 cm or more below the bench top)"
-    if body_drop_mm(r) >= L.BODY_DROP_M / L.MM - L.EPS:
-        return "the saw was dropped (its body 5 cm or more below where it lay)"
+    if speed_down > L.FALL_SPEED_M_S + L.EPS:
+        return "the saw fell (a corner moving down faster than 1 m/s)"
     return ""
 
 
@@ -168,8 +179,9 @@ class Tracker:
             self.reset()
             self.steps = 1
             self.resets += 1
+        speed_down = fall_speed(self.prev, r)
         self.prev = r
-        why = wrecked(r)
+        why = wrecked(r, speed_down)
         if why and not self.latched:
             self.latched = why
         if off_stop_unlocked(r):
@@ -207,7 +219,7 @@ class Tracker:
                    "milestone": self.milestone, "hands_off_now": off, "hands_off_2s": hands_off, "still_2s": still,
                    "motion": motion, "gap_mm": None if gap is None else round(gap / L.MM, 1),
                    "body_moved_mm": round(body_moved_mm(r), 2), "body_tilt_deg": round(body_tilt_deg(r), 2),
-                   "body_drop_mm": round(body_drop_mm(r), 2),
+                   "fall_speed_m_s": round(speed_down, 3),
                    "latched": self.latched}
         self.last = Result(score, score >= 1.0, details)
         return self.last

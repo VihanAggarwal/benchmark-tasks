@@ -8,9 +8,13 @@ GPU results (2026-11-14, L40S): the scripted demo scores 1.0 (see Results in sim
 it 0.0: a closed-finger push on the lever's tab wedged, so the shoe stayed clamped. The demo now pinches the tab and
 swings the lever along its arc instead.
 
-Revised 2026-11-15 after review (see "Revision (2026-11-15)" at the end): moving the saw on the bench is no longer
-penalised; only dropping it, pushing it off the bench or letting it fall over latches a zero. The saw's figures were
-re-checked against the maker's manual, datasheet and service parts list.
+Revised 2026-11-15 and again 2026-11-15b after review (see the two Revision sections at the end): moving, turning or
+standing the saw up on the bench is not penalised at any angle; only a real drop or fall, or the saw leaving the
+bench, latches a zero. The saw's figures were re-checked against every public source we could find.
+
+Which results are which: the scores under "Results in simulation" are GPU physics runs (L40S, 2026-11-14) of the same
+demo moves; everything under "Offline predictions" and every test in `tests/` is an offline prediction (our numpy
+kinematics, no physics). The 2026-11-15b scorer change has not yet been run on the GPU.
 
 ## Why it is hard
 
@@ -38,11 +42,13 @@ Conditions (real trial in brackets):
 - Still: over the last 2 s the bevel changes 0.5 degree or less, the lever 2 degrees or less, the body 2 mm or less.
 - Unlocked off the stop: at some point the lever out (10 degrees or more) while the shoe is 6 mm or more forward of
   its 0 degree stop (a pencil mark on the shoe against the gear housing, video).
-- Latched zero, only for clearly unsafe outcomes: the saw dropped or off the bench (any part 5 cm or more below the
-  bench top, its body 5 cm or more below where it lay, or its blade line, the shoe's pivot, past the bench's edge),
-  or fallen over (the side that faced up turned 60 degrees or more from vertical: onto its handle, its shoe or an
-  end; protractor on the side video). Sliding or turning the saw on the bench is not penalised: a saw moved 40 mm and
-  turned 20 degrees with its shoe locked at 45 scores 1.0.
+- Latched zero, only for a real drop or fall or the saw leaving the bench: any part 5 cm or more below the bench top
+  (dropped); any corner of the box round the saw's body moving down faster than 1 m/s between two control steps
+  (falling: a free fall of 5 cm reaches 0.99 m/s, a hand setting the saw down moves it far slower; side video); or
+  its blade line, the shoe's pivot, past the bench's edge (off the bench). Sliding, turning or standing the saw up
+  on the bench is not penalised at any angle: the bevel is read from the shoe relative to the saw's body, so a saw
+  moved 40 mm and turned 20 degrees, turned 60 degrees, or set upright on its shoe, with the shoe locked at 45 and at
+  rest, scores 1.0.
 
 | Outcome | Score |
 |---|---|
@@ -54,7 +60,7 @@ Conditions (real trial in brackets):
 
 Success: 1.0 held for 1 s. Doing nothing scores 0.
 
-## Offline predictions (no physics)
+## Offline predictions (no physics; not GPU runs)
 
 | Run | What it does | Predicted |
 |---|---|---|
@@ -184,7 +190,7 @@ Third-party assets: none.
 
 ## Results in simulation
 
-Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial each:
+GPU physics runs. Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial each:
 
 | Run | `task_score` |
 |---|---|
@@ -194,6 +200,9 @@ Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial
 | Dream-1 | 0.0 |
 
 ## Revision (2026-11-15)
+
+Superseded in part by Revision (2026-11-15b) below: the "fallen over" (60 degree) and "body 5 cm below where it lay"
+latches described here were removed; dropped and off the bench stay, and a fall is now a downward speed.
 
 The review came back "Not accepted (revisable)". Each point and what changed:
 
@@ -242,3 +251,61 @@ datasheet (Sources). What they settle:
 
 The demo is unchanged (no test needed a change), so the GPU scores above (demo 1.0, left arm idle 1.0, right arm
 idle 0.0, Dream-1 0.0) stand for the same moves; a GPU re-run of the revised scorer is queued to confirm them.
+
+## Revision (2026-11-15b)
+
+The review came back "Not accepted (revisable)" a second time. Each point and what changed:
+
+**Scoring (not met): "A controlled 60-degree rotation permanently scores zero even if the blade-free saw is safely
+set upright and correctly adjusted."** Agreed; the "fallen over" latch (the side that faced up turned 60 degrees or
+more) described in the Revision (2026-11-15) section above is gone entirely, and so is the "body 5 cm or more below
+where it lay" test (a saw stood on its shoe moves its reference point without falling). No angle of the saw on the
+bench latches a zero now. The end state is still read from the shoe's angle relative to the saw's body (the bevel
+joint), so any controlled orientation, upright on its shoe included, with the shoe locked at 45 and the saw at rest
+with hands off, scores 1.0. Tests: `test_set_upright_on_its_shoe_scores_one` (the saw stood on its shoe, the shoe's
+working face down on the mat, bevel locked at +45 or -45: 1.0, nothing latched),
+`test_controlled_turn_upright_then_locked_scores_one` (unlocked, set to 45, turned 45 degrees onto its shoe or 60
+degrees over 2 s, then locked: 1.0) and `test_no_angle_of_the_saw_latches_a_zero` (at rest turned 60, 90, 135 or 180
+degrees either way, also yawed 30: 1.0). The old `test_fallen_over_is_a_latched_zero` is removed.
+
+**"Retain penalties for actual drops or falls."** Kept, and only these latch a zero: dropped (any part 5 cm or more
+below the bench top); falling (any corner of the box round the saw's body moving down faster than 1 m/s between two
+control steps, `layout.FALL_SPEED_M_S`; a free fall of 5 cm reaches 0.99 m/s, a hand lowering a 2.45 kg saw moves
+it far slower); off the bench (its blade line past the bench top's edge). Tests: `test_dropped_is_a_latched_zero`,
+`test_falling_is_a_latched_zero` (60 mm in one step, 1.2 m/s: zero; 30 mm, 0.6 m/s: not; stood on its shoe and
+toppling back onto its side in 0.1 s: zero) and `test_pushed_off_the_bench_is_a_latched_zero`. The rest of the
+ladder (1.0, 0.75, 0.5, 0.25, 0) is unchanged; the `scoring` field and the Scoring section say the same.
+
+**Flag: "Verify the lever geometry, gripper access and operating forces on the specified real jigsaw."** We cannot
+measure a physical saw. We re-checked every public source we could reach on 2026-11-15:
+
+- The lever's service part page (493248-00, https://service.dewalt.co.uk/BD/IE/en-IE/Part/PartDetails?id=1389370):
+  no dimensions, material, weight or image. It lists the same lever on the DC308, DC330, DCS331, DCS332 and DW331
+  jigsaws, so it is one long-running design, but gives no figure.
+- The iFixit device page for the DCS331B type 12 (https://www.ifixit.com/Device/Dewalt_Jig_Saw_DCS331B__TYPE_12_2016):
+  no guide, photo with scale or lever figure; it gives 11.25 in long and 3.9 in, as we have (and 6.8 lb, which
+  matches the saw with a battery, not the bare tool, so it is not used).
+- We found no teardown photo or video of the DCS331 shoe or lever with a scale in view, and no published force.
+
+So nothing new is sourced and no figure changes. What is sourced: 5.4 lb bare tool, 215 mm shoe to handle top,
+3.9 in across, 11.25 in long (the maker's EU sheet says 305 mm), an aluminium shoe, the detents at 0, 15, 30 and 45,
+the unlock, slide and lock procedure, and the lever's place and swing (manual Fig. A and Fig. G). What is estimated,
+and why it is an estimate: the shoe's width and mass, the lever's size and travel, the knob drawn as a flat tab, the
+6 mm slide off the stop, the 10 mm slot and every force (no source gives them, and Fig. A is a perspective drawing
+good to about 10 mm).
+
+Why the manipulation does not depend on the exact figures within these tolerances (offline geometry, not a GPU
+run): the pinch opens 20 mm round a 6 mm tab, 7 mm clear each side, so the tab may sit 6 mm either way across, or be
+the real 8 mm knob, and the same pinch closes on it; the carry follows the pinched spot's arc about the lever pivot,
+so a different pivot or tab place changes the waypoint numbers, not the move; the hand lets go at 50 degrees, past
+the 25 degree over-centre point, so any travel from 50 to 70 degrees needs no change (a shorter travel only lowers
+where the carry stops and where the return pinch starts); the pull is commanded 12 mm into a slot that ends at 10, so
+a stop needing anything up to 10 mm is freed; the tilt push ends at the shoe's 45 degree end of travel, a hard stop,
+wherever the detents sit; the forces only set how far past contact a push or press is commanded (the arm gives about
+1 mm per newton), a number in the demo, not a different motion. The real forces are the one thing this cannot
+show; the real trial measures them with the 10 N spring scale before the first trial (Revision (2026-11-15)).
+
+**Demo:** unchanged; no source forced a change. The GPU scores under "Results in simulation" (demo 1.0, left arm
+idle 1.0, right arm idle 0.0, Dream-1 0.0) are GPU physics runs of these same moves with the earlier scorer. In those
+runs the demo never lifts or turns the saw, so the new fall test is not expected to fire (an expectation, not a
+measurement); a GPU re-run of the revised scorer will confirm the scores.

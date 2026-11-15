@@ -46,6 +46,8 @@ WIN = L.WIN_STEPS
 SPEC = T.SAW_SPEC
 AWAY = {a: rigstate.Arm(np.array([0.28, s * 0.25, L.TOP + 0.12]), np.array([0.28, s * 0.25, L.TOP + 0.107]), 0.4)
         for a, s in (("left", 1.0), ("right", -1.0))}
+FAR = {a: rigstate.Arm(np.array([0.28, s * 0.25, L.TOP + 0.46]), np.array([0.28, s * 0.25, L.TOP + 0.447]), 0.4)
+       for a, s in (("left", 1.0), ("right", -1.0))}  # well clear of a saw stood up or turned over
 BASES = {"left": np.array([0.0, 0.305, 0.75]), "right": np.array([0.0, -0.305, 0.75])}
 
 
@@ -61,6 +63,19 @@ def saw(slide_mm=0.0, bevel_deg=0.0, lever_deg=0.0, dx_mm=0.0, dy_mm=0.0, dz_mm=
                                        joints={"slide": slide_mm * L.MM, "bevel": math.radians(bevel_deg),
                                                "lever": math.radians(lever_deg)}, source="sim")}
 
+
+def resting_dz(bevel_deg=45.0, tilt_deg=0.0, yaw_deg=0.0):
+    """How far (mm) to raise or lower the saw, turned so, until its lowest point rests on the mat."""
+    st = saw(10, bevel_deg, 0, tilt_deg=tilt_deg, yaw_deg=yaw_deg)[S.SAW]
+    return (L.TOP + L.MAT_T * L.MM - float(st.low[2])) / L.MM
+
+
+UPRIGHT_DZ_MM = {b: resting_dz(b, 90.0 - b) for b in (45.0, -45.0)}
+
+
+def upright(bevel_deg=45.0):
+    """The saw set upright on its shoe (the shoe's working face down, on the mat), shoe at ``bevel_deg``, clamped."""
+    return saw(10, bevel_deg, 0, tilt_deg=90.0 - bevel_deg, dz_mm=UPRIGHT_DZ_MM[bevel_deg])
 
 def arms_at(point_b_mm, side="right", opening=0.0):
     """Arms with ``side``'s pad tips at a B-frame point (mm), the other away."""
@@ -396,26 +411,73 @@ class Tiers(unittest.TestCase):
 
     def test_dropped_is_a_latched_zero(self):
         tr = S.Tracker()
-        run(tr, saw(10, 45, 0, dz_mm=-50.0), AWAY, 1)  # the body 5 cm below where it lay
+        run(tr, saw(10, 45, 0, dz_mm=-55.0), AWAY, 1)  # the lowest part 5.2 cm below the bench top
         self.assertEqual(run(tr, saw(10, 45, 0), AWAY, WIN).score, 0.0)
         self.assertIn("dropped", tr.latched)
-        tr = S.Tracker()
-        run(tr, saw(10, 45, 0, dz_mm=-60.0), AWAY, 1)
-        self.assertEqual(run(tr, saw(10, 45, 0), AWAY, WIN).score, 0.0)
-        # lifted and set down again 2 cm away is not a drop
+        # lifted, then lowered 30 mm in 0.5 s (0.06 m/s) and set down 2 cm away: not a drop
         tr = S.Tracker()
         run(tr, saw(10, 45, 60, dz_mm=30.0), AWAY, 5)
+        for k in range(1, 11):
+            run(tr, saw(10, 45, 60, dz_mm=30.0 - 3.0 * k, dy_mm=2.0 * k), AWAY, 1)
         self.assertEqual(run(tr, saw(10, 45, 0, dy_mm=20.0), AWAY, WIN).score, 1.0)
-
-    def test_fallen_over_is_a_latched_zero(self):
-        for tilt in (60.0, -60.0, 90.0, -90.0):  # onto its handle or onto its shoe (blade) side
-            tr = S.Tracker()
-            run(tr, saw(10, 45, 0, tilt_deg=tilt), AWAY, 1)
-            self.assertIn("fell over", tr.latched, tilt)
-            self.assertEqual(run(tr, saw(10, 45, 0), AWAY, WIN).score, 0.0, tilt)
-        tr = S.Tracker()
-        self.assertEqual(run(tr, saw(10, 45, 0, tilt_deg=59.0), AWAY, WIN).score, 1.0)
         self.assertEqual(tr.latched, "")
+
+    def test_falling_is_a_latched_zero(self):
+        """Revision 2026-11-15b: falling is a body corner moving down faster than 1 m/s (a free fall of 5 cm)."""
+        tr = S.Tracker()
+        run(tr, saw(10, 45, 0, dz_mm=30.0), FAR, 3)
+        run(tr, saw(10, 45, 0), FAR, 1)  # 30 mm in one step: 0.6 m/s, a set-down, not a fall
+        self.assertEqual(tr.latched, "")
+        run(tr, saw(10, 45, 0, dz_mm=60.0), FAR, 3)
+        run(tr, saw(10, 45, 0), FAR, 1)  # 60 mm in one step: 1.2 m/s
+        self.assertIn("fell", tr.latched)
+        self.assertEqual(run(tr, saw(10, 45, 0), FAR, WIN).score, 0.0)
+        # stood upright on its shoe (1.0), then toppling back onto its side in 0.1 s: a fall
+        tr = S.Tracker()
+        self.assertEqual(run(tr, upright(45.0), FAR, WIN).score, 1.0)
+        run(tr, saw(10, 45, 0, tilt_deg=22.5, dz_mm=UPRIGHT_DZ_MM[45.0] / 2), FAR, 1)
+        run(tr, saw(10, 45, 0), FAR, 1)
+        self.assertIn("fell", tr.latched)
+        self.assertEqual(run(tr, saw(10, 45, 0), FAR, WIN).score, 0.0)
+
+    def test_no_angle_of_the_saw_latches_a_zero(self):
+        """Revision 2026-11-15b: the 60 degree "fallen over" latch is gone. A saw at rest at any angle, its shoe
+        locked at 45, scores 1.0: the end state is read from the shoe relative to the body."""
+        for tilt in (60.0, -60.0, 90.0, -90.0, 135.0, 180.0):
+            for yaw in (0.0, 30.0):
+                tr = S.Tracker()
+                dz = resting_dz(45.0, tilt, yaw)
+                res = run(tr, saw(10, 45, 0, tilt_deg=tilt, yaw_deg=yaw, dz_mm=dz), FAR, WIN)
+                self.assertEqual(res.score, 1.0, (tilt, yaw))
+                self.assertEqual(tr.latched, "", (tilt, yaw))
+
+    def test_set_upright_on_its_shoe_scores_one(self):
+        """The review's case: the bare saw set upright on its shoe, bevel locked at 45, hands off: 1.0."""
+        for bevel in (45.0, -45.0):
+            st = upright(bevel)
+            n = st[S.SAW].link_pose("bevel")[0] @ np.array([0.0, -1.0, 0.0])
+            self.assertLess(n[2], -0.999, bevel)  # the shoe's working face points straight down
+            self.assertAlmostEqual(float(st[S.SAW].low[2]), L.TOP + L.MAT_T * L.MM, places=6)  # resting on the mat
+            tr = S.Tracker()
+            self.assertEqual(run(tr, st, FAR, WIN).score, 1.0, bevel)
+            self.assertEqual(tr.latched, "", bevel)
+
+    def test_controlled_turn_upright_then_locked_scores_one(self):
+        """Unlocked, set to 45, turned 45 degrees (upright on its shoe) or 60 degrees in 2 s by a hand, then locked
+        and let go: 1.0, nothing latched."""
+        for final in (45.0, 60.0):
+            tr = S.Tracker()
+            run(tr, saw(7, 0, 60), FAR, 2)
+            run(tr, saw(10, 45, 60), FAR, 5)
+            n = 40
+            for k in range(1, n + 1):
+                f = k / n
+                run(tr, saw(10, 45, 60, tilt_deg=final * f, dz_mm=UPRIGHT_DZ_MM[45.0] * f), FAR, 1)
+            self.assertEqual(tr.latched, "", final)
+            last = saw(10, 45, 0, tilt_deg=final, dz_mm=UPRIGHT_DZ_MM[45.0])
+            self.assertEqual(run(tr, last, FAR, WIN).score, 1.0, final)
+            self.assertEqual(tr.latched, "", final)
+            self.assertEqual(tr.resets, 0, final)
 
     def test_every_listed_score_is_reachable(self):
         seen = {run(S.Tracker(), saw(10, 45, 0), AWAY, WIN).score, run(S.Tracker(), saw(10, 45, 60), AWAY, WIN).score,
@@ -729,12 +791,16 @@ class Text(unittest.TestCase):
         mx = [round(o[0] / L.MM + v) for v in L.MAT_X]
         my = [round(o[1] / L.MM + v) for v in L.MAT_Y]
         self.assertIn(f"x {mx[0]} to {mx[1]}, y {my[0]} to {my[1]}", setup)
-        for s in ("6 mm", "10 degrees", "5 N", "45 +-2", "28 degrees", "60 degrees", "5 cm", "2 s"):
+        for s in ("6 mm", "10 degrees", "5 N", "45 +-2", "28 degrees", "1 m/s", "5 cm", "2 s", "upright on its shoe"):
             self.assertIn(s, scoring)
         self.assertNotIn("30 mm", scoring)
         self.assertNotIn("15 degrees or more up", scoring)
-        self.assertEqual((L.SLIDE_REL, L.LOCK_DEG, L.CLEAR_M, L.WINDOW_S, L.TIP_DEG, L.DROP_M, L.BODY_DROP_M,
-                          L.HALF_DEG), (6.0, 10.0, 0.05, 2.0, 60.0, 0.05, 0.05, 28.0))
+        self.assertNotIn("falls over", scoring)
+        self.assertNotIn("60 degrees", scoring)
+        self.assertNotIn("where it lay", scoring)
+        self.assertFalse(hasattr(L, "TIP_DEG") or hasattr(L, "BODY_DROP_M"))
+        self.assertEqual((L.SLIDE_REL, L.LOCK_DEG, L.CLEAR_M, L.WINDOW_S, L.DROP_M, L.FALL_SPEED_M_S, L.HALF_DEG),
+                         (6.0, 10.0, 0.05, 2.0, 0.05, 1.0, 28.0))
         self.assertIn("2.45", setup)
         self.assertIn("889,700", self.spec["context"])
 
@@ -745,7 +811,8 @@ class Text(unittest.TestCase):
     def test_readme_sources_and_sections(self):
         for s in ("manualslib.com/manual/1084350/Dewalt-Dcs331.html?page=16", "bls.gov/ooh/construction-and-extraction"
                   "/carpenters.htm", "## Scoring", "## Simplifications", "## Sources", "## Results in simulation",
-                  "## Revision (2026-11-15)", "dewalt_dcs331n-xj_datasheet.pdf", "PartsForProduct?productId=36805"):
+                  "## Revision (2026-11-15)", "## Revision (2026-11-15b)", "dewalt_dcs331n-xj_datasheet.pdf",
+                  "PartsForProduct?productId=36805"):
             self.assertIn(s, self.readme)
 
 

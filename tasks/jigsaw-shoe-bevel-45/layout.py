@@ -131,10 +131,10 @@ WIN_STEPS = int(round(WINDOW_S * CONTROL_HZ))
 STILL_BEVEL_DEG = 0.5
 STILL_LEVER_DEG = 2.0
 STILL_BODY_MM = 2.0
-# Latched zero only for clearly unsafe outcomes (dropped, off the bench, fallen over); moving the saw is not one.
-TIP_DEG = 60.0  # the side that faced up turned this far from vertical: fallen onto its handle, its shoe or an end
+# Latched zero only for a real drop or fall, or the saw leaving the bench. Moving or turning it, however far, is not
+# one (revision 2026-11-15b: the "fallen over at 60 degrees" latch is gone; a saw set upright on its shoe is fine).
 DROP_M = 0.05  # any part this far below the bench top
-BODY_DROP_M = 0.05  # the body this far below where it lay
+FALL_SPEED_M_S = 1.0  # a body corner moving down faster than this (a free fall of 5 cm reaches 0.99 m/s): falling
 BENCH_X_M = (-0.19, 0.91)  # the station table's top (world, m): the saw's reference point past it is off the bench
 BENCH_Y_M = (-0.65, 0.65)
 RESET_JUMP_M = 0.03
