@@ -18,5 +18,5 @@
   "fidelity": "Chest, slides, masses and sizes are a mock at real size, not a measured product; the balance is computed from the stated masses and centres of mass, and checked on the built chest. Masses are spread over each body's colliders. Slides are prismatic joints with 3 N friction (est 2 to 5 N, to be measured) and damping; no slide play. Rubber feet friction 1.2. Rigid bodies; the foam is rigid. The tip is free-body physics, no rule. The handle's octagon is four turned boxes.",
   "reset_notes": "Set the chest square on its taped outline, all four feet down. Pull the left drawer fully out to its stop; push the right one shut and check its bay is empty. Lay the screwdriver on its marks, handle centre at x 250, y -370, blade toward the robot's right. Check the balance: with one drawer fully out and a 5 N pull on its bar the chest stands. Nothing is consumed.",
   "scores": "Dream-1 run: 0.0 (1200 steps); demo: 1.0 (801 steps)",
-  "media": "to be uploaded"
+  "media": "M-NNCFQX"
 }
