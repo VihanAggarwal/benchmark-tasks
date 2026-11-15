@@ -176,7 +176,8 @@ class Tiers(unittest.TestCase):
         self.assertEqual(S.tier(False, True, True, True, False, True), 0.75)
         self.assertEqual(S.tier(False, True, True, True, True, False), 0.75)
         self.assertEqual(S.tier(False, True, False, True, True, True), 0.5)
-        self.assertEqual(S.tier(False, False, True, True, True, True), 0.25)
+        self.assertEqual(S.tier(False, False, True, True, True, True), 0.0)  # tray binned, sharp exposed
+        self.assertEqual(S.tier(False, False, True, False, False, False), 0.0)
         self.assertEqual(S.tier(False, False, False, False, True, True), 0.0)
 
     def test_forceps_left_on_the_table(self):
@@ -188,12 +189,24 @@ class Tiers(unittest.TestCase):
         self.assertEqual(run(p).score, 0.5)
 
     def test_syringe_on_the_table_tray_binned(self):
+        # revision 2026-11-15b: a used sharp left exposed on the table earns nothing, even with the tray binned
         p = done(syringe=state(S.SYRINGE, (0.14, 0.24, 0.006), roll=math.pi / 2))
-        self.assertEqual(run(p).score, 0.25)
+        self.assertEqual(run(p).score, 0.0)
 
     def test_syringe_hanging_in_the_opening(self):
         p = done(syringe=state(S.SYRINGE, (L.CON_X, L.CON_Y, L.CON_H - 0.04)))
-        self.assertEqual(run(p).score, 0.25)
+        self.assertEqual(run(p).score, 0.0)
+
+    def test_only_safe_states_earn_partial_credit(self):
+        exposed = state(S.SYRINGE, (0.14, 0.24, 0.006), roll=math.pi / 2)
+        for p in (done(syringe=exposed),
+                  done(syringe=exposed, forceps=state(S.FORCEPS, (0.20, -0.05, 0.0))),
+                  start()):
+            self.assertEqual(run(p).score, 0.0)
+        safe = done(tray=T.TRAY_PART.rest_state(), forceps=T.FORCEPS_PART.rest_state())
+        self.assertEqual(run(safe).score, 0.5)
+        self.assertNotIn(0.25, {S.tier(False, a, b, c, d, e) for a in (0, 1) for b in (0, 1) for c in (0, 1)
+                                for d in (0, 1) for e in (0, 1)})
 
     def test_nothing_done(self):
         self.assertEqual(run(start()).score, 0.0)
@@ -414,7 +427,7 @@ class Robustness(unittest.TestCase):
             arms = {a: arm(rng.uniform(0.0, 1.0, 3) + np.array([0, 0, L.TOP]), rng.uniform(0, 1))
                     for a in ("left", "right")}
             res = S.Tracker().update(p, arms)
-            self.assertIn(res.score, (0.0, 0.25, 0.5, 0.75, 1.0))
+            self.assertIn(res.score, (0.0, 0.5, 0.75, 1.0))
 
 
 class TaskFile(unittest.TestCase):
@@ -607,16 +620,21 @@ class Files(unittest.TestCase):
                       "x 25.0 cm, y +27.0 cm", "190 mm (x) by 270 mm (y)", "150 mm deep", "154 mm",
                       "x 27.0 cm, y -29.0 cm", "15 mm beyond"):
             self.assertIn(token, setup)
-        for token in ("2 mm", "38 mm", "151.9 mm", "20 mm", "25 mm", "3 mm", "3 degrees", "10 mm", "1 s", "0.25",
-                      "0.5", "0.75", "1.0"):
+        for token in ("2 mm", "38 mm", "151.9 mm", "20 mm", "25 mm", "3 mm", "3 degrees", "10 mm", "1 s",
+                      "0.5", "0.75", "1.0", "Possible scores: 0, 0.5, 0.75, 1.0", "exposed"):
             self.assertIn(token, scoring)
+        self.assertNotIn("0.25", scoring)
+        self.assertIn("empty", setup)
+        self.assertIn("new, empty sharps container", d["reset_notes"])
+        self.assertNotIn("not emptied", d["reset_notes"])
         self.assertEqual(d["instruction"], T.INSTRUCTION)
         self.assertAlmostEqual(L.LID_UNDER, 0.1519, places=4)
         self.assertAlmostEqual(L.BIN_H, 0.154)
         scores = d.get("scores", "")  # before the GPU run: empty or TBD; after it: the real Dream-1 run and demo 1.0
         self.assertTrue(scores == "" or scores.startswith("TBD")
                         or re.fullmatch(r"Dream-1 run: [0-9.]+; demo: 1\.0", scores), scores)
-        self.assertNotIn("media", d)
+        media = d.get("media", "")  # before upload: absent; after it: the board's media id
+        self.assertTrue(media == "" or re.fullmatch(r"M-[A-Z0-9]{6}", media), media)
 
     def test_context_has_the_occupation(self):
         ctx = json.loads((HERE / "task.json").read_text())["context"]

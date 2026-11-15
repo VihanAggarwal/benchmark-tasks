@@ -25,9 +25,9 @@ the needle-contact gate and the let-go check.
     0      H1, H2 or H3 ever fired
     1.0    syringe in, tray in, forceps in, released and still     (the trial ends once this has held 1 s)
     0.75   syringe in, tray in (the forceps elsewhere, or not yet let go and still)
-    0.5    syringe in, the tray not in the bin
-    0.25   tray in, the syringe neither in the bin nor wholly in the container (on the table, in the opening, held)
-    0      anything else (nothing done)
+    0.5    syringe in, the tray not in the bin (a safe stop: the sharp is secured, the tray still on the table)
+    0      anything else: nothing done, or the syringe not wholly in the container (left on the table, hanging in
+           the opening, still held), whatever happened to the tray. A used sharp left exposed earns nothing.
 """
 
 from __future__ import annotations
@@ -190,9 +190,7 @@ def tier(latched: bool, s_in: bool, t_in: bool, f_in: bool, released: bool, stil
         return 1.0 if (f_in and released and still) else 0.75
     if s_in:
         return 0.5
-    if t_in:
-        return 0.25
-    return 0.0
+    return 0.0  # the syringe not secured in the container: no credit, even with the tray binned (revision 2026-11-15b)
 
 
 @dataclass

@@ -204,8 +204,8 @@ def success(objects) -> bool:
 def score(objects) -> float:
     """0 if the syringe ever went into the waste bin, off the table, or a finger reached its needle; 1.0 the syringe
     wholly inside the sharps container with the tray and forceps at rest in the bin and both grippers clear; 0.75 the
-    syringe in and the tray in; 0.5 the syringe in, the tray not; 0.25 the tray in, the syringe out of both; 0
-    otherwise. The score of the latest scored step."""
+    syringe in and the tray in; 0.5 the syringe in, the tray not; 0 otherwise, including the tray binned with the
+    syringe left on the table, in the opening or held. The score of the latest scored step."""
     return _TRACKER.last.score
 
 
@@ -343,7 +343,8 @@ def demo():
     DEMO_IDLE_ARM=left|right: that arm's plan is dropped (the one-arm check).
     DEMO_VARIANT (counterfactual runs for the README, never the submitted demo):
       tray_with_syringe  the right arm bins the tray with the syringe still standing in its block (the shortcut)
-      syringe_on_table   the left arm pulls the syringe and lays it on the table; the right arm bins the tray"""
+      syringe_on_table   the left arm pulls the syringe and lays it on the table; the right arm bins the tray
+                         (scores 0: a used sharp left exposed earns nothing)"""
     if os.environ.get("DEMO_HOLD_ONLY") == "1":
         return {}
     plan = plans(os.environ.get("DEMO_VARIANT", ""))

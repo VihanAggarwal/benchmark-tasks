@@ -49,9 +49,12 @@ and bottom; and labeled or color-coded"; (d)(2)(vii): contaminated needles "shal
 |---|---|
 | Syringe in, tray and forceps in, released and still | 1.0 |
 | Syringe in, tray in (forceps out, or not yet let go and still) | 0.75 |
-| Syringe in, tray not in the bin | 0.5 |
-| Tray in, syringe neither in the bin nor wholly in the container | 0.25 |
+| Syringe in, tray not in the bin (a safe stop: the sharp is secured) | 0.5 |
+| Syringe not wholly in the container (on the table, in the opening, held), whatever the tray | 0 |
 | H1, H2 or H3, or nothing done | 0 |
+
+Possible scores: 0, 0.5, 0.75, 1.0. Partial credit is given only for safe states: every scored state above 0 has the
+used syringe already inside the sharps container. A used sharp left exposed earns nothing, even with the tray binned.
 
 "2 mm allowed": a part lying against an inner wall may read up to 2 mm into it (the simulator's contact; the
 container's floor has the same allowance), so a syringe resting in the container's corner counts as in.
@@ -63,16 +66,34 @@ bin, a look through the opening (and the wall, if translucent) for the syringe, 
 
 ## Results in simulation
 
-GPU results: to be run. Offline (tools/offline/check_task.py, kinematics and a carry/drop proxy, no physics):
+Two kinds of result are given here, and each row says which it is.
 
-| Run | What it does | Predicted |
+**GPU physics runs** (Isaac Sim on the official L40S launchable, job 20261114T234237, 2026-11-14). The submitted
+full-score video is this demo run, rendered from the physics simulation; it is not the offline prediction.
+
+| Run | What it does | GPU physics score |
+|---|---|---|
+| Settle (`DEMO_HOLD_ONLY=1`) | both arms hold still; nothing moves | 0.0 |
+| Scripted demo | both arms, the phases below | 1.0 (from step 547, held 1 s, trial ended at step 562) |
+| Left arm alone (`DEMO_IDLE_ARM=right`) | the syringe into the container, the tray left | 0.5 |
+| Right arm alone (`DEMO_IDLE_ARM=left`) | the tray binned with the syringe in it | 0.0 |
+| Dream-1, one trial at the full 1,200 steps | the policy under test | 0.0 |
+
+In the GPU demo no hazard fired, the closest finger region stayed 19.1 mm from the needle, and the syringe, tray and
+forceps all ended in. These scores are unchanged by the 2026-11-15b revision: none of these runs ended in the old
+0.25 state, and the demo's moves did not change.
+
+**Offline predictions** (tools/offline/check_task.py: kinematics and a carry/drop proxy, no physics, never run on the
+GPU):
+
+| Run | What it does | Offline prediction |
 |---|---|---|
 | Nothing (`DEMO_HOLD_ONLY=1`) | both arms hold still | 0.0 |
 | Scripted demo | both arms, the phases below | 1.0 (held from step 561) |
 | Left arm alone (`DEMO_IDLE_ARM=right`) | the syringe into the container, the tray left | 0.5 |
 | Right arm alone (`DEMO_IDLE_ARM=left`) | the tray binned with the syringe in it | 0.0 |
 | `DEMO_VARIANT=tray_with_syringe` | the shortcut: the tray binned with the syringe still in its block | 0.0 (H1) |
-| `DEMO_VARIANT=syringe_on_table` | the syringe pulled and laid on the table, the tray binned | 0.25 |
+| `DEMO_VARIANT=syringe_on_table` | the syringe pulled and laid on the table, the tray binned | 0.0 (sharp exposed) |
 
 The task does not claim to need two arms: either arm could do both carries in turn.
 
@@ -144,8 +165,32 @@ needle gap, both TCPs and openings).
 The kit tray with its foam block, a 3 mL syringe with a new 25 G x 5/8 in needle, plastic forceps, two gauze pads and
 the drape; the Fisherbrand 1 qt container taped down with its lid open; a low open bin with a clear liner, taped
 down. Reset: holding it by the barrel, stand a new syringe in the block with its needle pushed fully into the foam;
-tray back at x 22 cm, y 0 with the forceps, gauze and drape in it; empty the bin. The container is changed at its
-fill line, not emptied.
+tray back at x 22 cm, y 0 with the forceps, gauze and drape in it; empty the bin and replace its liner. The used
+sharps container is closed and taken away for disposal as sharps waste, as in real practice (it is never emptied or
+reused); a new, empty container of the same model is taped down in its place with its lid open, so every trial
+starts with an empty container as the setup states.
+
+## Revision (2026-11-15b)
+
+Answers to the review of 2026-11-15, point by point.
+
+1. **Construct validity and scoring: the syringe-on-table strategy earned 0.25.** The 0.25 tier is removed from the
+   scorer (`scoring.tier`), `task.json` scoring, this README and the tests. Leaving the used syringe on the table,
+   hanging in the opening or still in a hand now scores 0, whether or not the tray and forceps are binned. Partial
+   credit remains only for safe states, in which the syringe is already wholly inside the sharps container: 0.5 with
+   the tray still on the table, 0.75 with the tray in the bin but the forceps left out or the hands not yet clear.
+   Possible scores are now 0, 0.5, 0.75 and 1.0. The `syringe_on_table` counterfactual now predicts 0 offline; new
+   tests check that it and every other exposed-sharp state score 0 and that no state scores 0.25.
+2. **Reset against an empty starting container.** The reset no longer reuses the container until its fill line.
+   After each trial the used container is closed and disposed of as sharps waste, as real practice does, and a new,
+   empty one of the same model is taped down in its place, lid open. `task.json` reset_notes and the build section
+   above say so; the setup's "empty" container is now true at the start of every trial.
+3. **Is the full-score video a physics run?** Yes. The submitted video is the GPU physics-simulation run of the
+   scripted demo (job 20261114T234237, demo 1.0, no hazard, needle gap 19.1 mm), not the offline prediction. The
+   results section above now separates GPU physics runs from offline predictions in two tables.
+
+What did not change: the scene, every size and mass, the hazards H1 to H3, the end-state tests and the demo's moves.
+The GPU demo never passed through the removed tier at its end, so its 1.0 stands without a re-run.
 
 ## Files
 
