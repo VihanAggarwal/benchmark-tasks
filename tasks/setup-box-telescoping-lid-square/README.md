@@ -1,7 +1,9 @@
-# Close a rigid telescoping-lid box over its product without wedging the lid
+# Put the lid on a gift box: seat a close-fitting lid squarely, without wedging
 
-A rigid two-piece setup box stands on the table: an open base (70 x 114 x 40 mm, 2 mm greyboard) with a pocket laser
-distance meter in its hard case lying in it, and beside it the matching telescoping lid standing top up. The lid's inside
+Domain: societal relatability. Putting the lid on a gift box, shoebox or jewellery box is something nearly everyone has
+done: a close-fitting lid has to come down level and in line or it jams half on. A rigid two-piece gift box stands on
+the table: an open base (70 x 114 x 40 mm, 2 mm greyboard) with a gift (an oak block stand-in) lying in it, and beside it
+the matching telescoping lid standing top up. The lid's inside
 is 2.5 mm larger than the base's outside on every side. The robot must pick the lid up, bring it over the base, lower it
 level and in line so that it telescopes down over the base's walls until its top panel rests on the base's rim, leave
 the box where it was packed with the product inside, and let go.
@@ -94,27 +96,35 @@ submitted demo).
 - Rigid bodies. The base and lid are compounds of 2 mm boxes (floor and four walls; panel and four skirt walls); nothing
   flexes, dents or tears. A real lid's skirt can bow and a real trial adds a dent check. There is no software rule: the
   task is rigid bodies and friction (mechkit compounds).
-- The 2.5 mm play, the 0.45 friction, the box sizes and the masses (50 g each for base and lid, 120 g for the product) are
-  estimates: measure the real box. A real telescoping lid's fit varies with the board and wrap.
-- The product is a solid block of the instrument's outer size and mass; the case's rounded corners, foam and the paper
-  wrap are not modelled.
+- The box sizes, the 2.5 mm play and the masses (50 g each for base and lid, 120 g for the gift) follow the cut list
+  below, and the real box is checked against them. The 0.45 friction is a simulator setting; a real greyboard box is
+  not tuned to it and friction is not scored.
+- The gift is a solid oak block of 55 x 105 x 28 mm and 0.12 kg; wrapping paper, tissue and ribbon are not modelled.
 - The pads close on a 2 mm wall at 20 N a side; a real grip on a flexible skirt is gentler.
 
 ## Sources
 
-- Packers and packagers, hand, SOC 53-7064, about 0.6 million US jobs: BLS Occupational Outlook Handbook, material
-  moving occupations (hand packers and packagers).
-- Two-piece rigid ("setup") boxes with a telescoping lid: standard packaging form; the sizes here are our estimates for a
-  small electronics box (base 70 x 114 x 40 mm outside, 2 mm board) and the pocket laser distance meter's case
-  (55 x 105 x 28 mm, 0.12 kg is est from catalogue figures for this class of instrument).
 - Gripper and reach limits: the program's station figures.
+- Greyboard: 2.0 mm bookbinding board (art-supply shops, about 10 USD a sheet, density about 1.1 g/cm3, which gives the
+  50 g per part). No third-party meshes or scans are used.
 
 ## Real build and reset
 
-The real trial needs one two-piece rigid box (base 70 x 114 x 40 mm, 2 mm board, lid 2.5 mm larger inside on each side;
-measure the real one with calipers and feeler gauge and use its sizes), a pocket instrument about 55 x 105 x 28 mm of
-about 0.12 kg, and a table with pencil marks for the base's footprint and the lid's start. Reset: put the instrument in
-the base (long side along y), base on its marks, lid standing top up on its mark. Replace a box whose walls are dented or
+Build one pair (and a spare) from 2.0 mm greyboard with a craft knife, steel rule and PVA glue. Cut every piece within
+0.3 mm.
+
+| Part | Pieces (mm) | Result (mm) |
+|---|---|---|
+| Base | floor 70 x 114; two long walls 114 x 38 on the floor's long edges; two short walls 66 x 38 between them | outside 70 x 114 x 40, inside 66 x 110 |
+| Lid | top panel 79 x 123; two long skirt walls 123 x 34 under the panel's long edges; two short walls 75 x 34 between them | outside 79 x 123 x 36, inside 75 x 119 |
+| Gift | oak block 55 x 105 x 28, trimmed to 0.12 kg within 0.01 kg | |
+
+Dimensions and clearance are set by the cut list, not estimated: lid inside 75 x 119 mm minus base outside 70 x 114 mm is 5 mm, so 2.5 mm a side; every piece within 0.2 mm keeps the play within 2.5 +/- 0.4 mm. Measure each finished pair and write it in the trial log: base height 40 mm and lid height 36 mm within 0.5 mm (so the
+seated height is 42 mm), the lid's inside against the base's outside with calipers, and the play on each of the four
+sides with a feeler gauge with the lid held over the base. Accept the pair only if the play is 2.0 to 3.0 mm on all four
+sides (design 2.5 mm); otherwise rebuild the lid. The scoring conditions then apply as written (they are tied to the 40 mm
+base and 2 mm panel, not to the board's make). Reset: lay the block in the base (long side along y), base on its pencil
+marks, lid standing top up on its mark. Re-check the pair after any hard push and replace a box whose walls are dented or
 creased more than 2 mm.
 
 ## Files

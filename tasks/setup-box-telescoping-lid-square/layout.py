@@ -5,11 +5,11 @@ y +-0.305; the station's table top is at z 0.7475. Heights below are above the t
 
 A rigid two-piece setup box (greyboard, 2 mm, paper wrapped): an open base 70 x 114 x 40 mm and a telescoping lid
 (top panel 2 mm, skirt 34 mm below it) whose inside is 2.5 mm larger than the base's outside on every side. A
-pocket laser distance meter in its hard case lies in the base. The base stands where it is packed, the lid stands
+gift (an oak block) lies in the base. The base stands where it is packed, the lid stands
 top up on the table beside it. Seated: the lid's top panel rests on the base's rim, the skirt over the base's
 walls by 34 mm.
 
-Figures are sourced (README) or estimates (est, said in task.json's fidelity): see the comments.
+Figures follow the cut list in task.json's setup and the README.
 """
 
 import math
@@ -19,8 +19,8 @@ TOP = 0.7475  # station table top (world z)
 G = 9.81
 
 # -- the base (loose) ----------------------------------------------------------------------------------------------
-# Two-piece rigid ("setup") box: 2 mm greyboard wrapped in paper. Sizes are est (a typical small electronics box,
-# measure the real one, README).
+# Two-piece rigid ("setup") box: 2 mm greyboard wrapped in paper. Sizes follow the README cut list; check the
+# built box with calipers.
 BASE_LX, BASE_LY, BASE_H = 0.070, 0.114, 0.040  # outside: x across, y along, z tall
 WALL = 0.002
 FLOOR = 0.002
@@ -30,7 +30,7 @@ BASE_COLOR = (0.09, 0.09, 0.10)
 INNER_LX, INNER_LY = BASE_LX - 2 * WALL, BASE_LY - 2 * WALL  # 66 x 110 mm
 
 # -- the lid (loose) -----------------------------------------------------------------------------------------------
-CLR = 0.0025  # play between the lid's inside and the base's outside, each side (est: measure the real box)
+CLR = 0.0025  # play between the lid's inside and the base's outside, each side (design play; checked by feeler gauge on each built box)
 LID_IX, LID_IY = BASE_LX + 2 * CLR, BASE_LY + 2 * CLR  # inside 75 x 119 mm
 LID_OX, LID_OY = LID_IX + 2 * WALL, LID_IY + 2 * WALL  # outside 79 x 123 mm
 LID_PANEL = 0.002
@@ -44,15 +44,14 @@ SEAT_TOP = BASE_H + LID_PANEL  # 42 mm: the lid's top outer face when seated
 SEAT_RIM = BASE_H - LID_SKIRT  # 6 mm: the skirt's rim above the table when seated
 
 # -- the product (loose) -------------------------------------------------------------------------------------------
-# A pocket laser distance meter in its hard case, lying flat in the base, long side along y (sizes est from
-# catalogue figures for this class of instrument, README).
+# The gift: an oak block, lying flat in the base, long side along y (README).
 PR_LX, PR_LY, PR_H = 0.055, 0.105, 0.028
 PR_MASS = 0.120
 PR_COLOR = (0.93, 0.74, 0.08)
 PR_Z = FLOOR + PR_H / 2  # centre height over the table
 
 # -- friction (est) ------------------------------------------------------------------------------------------------
-FRICTION = (0.45, 0.40)  # paper-wrapped board on board and on the table
+FRICTION = (0.45, 0.40)  # board on board and on the table (simulator setting)
 
 # -- rule thresholds (scoring.py) ----------------------------------------------------------------------------------
 SEAT_TOL = 0.0015  # 1.0: the lid's top outer face within this of 42 mm

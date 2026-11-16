@@ -1,5 +1,5 @@
-"""On the station table, real size: a rigid two-piece setup box. The open base (2 mm greyboard, 70 x 114 x 40 mm,
-0.05 kg) stands at x 330 mm, y -70 mm with a pocket laser distance meter in its hard case (55 x 105 x 28 mm, 0.12 kg)
+"""On the station table, real size: a rigid two-piece gift box built from 2 mm greyboard. The open base (2 mm greyboard, 70 x 114 x 40 mm,
+0.05 kg) stands at x 330 mm, y -70 mm with an oak block standing in for the gift (55 x 105 x 28 mm, 0.12 kg)
 lying flat in it. The matching telescoping lid (2 mm board, 79 x 123 mm outside, 36 mm tall, 0.05 kg) stands top up on
 the table at x 330 mm, y -290 mm. Its inside is 2.5 mm larger than the base's outside on every side.
 
@@ -44,7 +44,7 @@ SCENE = "station"
 SCORE_OVER = "end"
 SUCCESS_HOLD_S = 1.0  # 1.0 must hold for 1 s on top of the scorer's own 1 s of let-go and stillness
 
-INSTRUCTION = "Close the box: seat the lid fully over the base with the product inside, square and without wedging it. Leave the box where it is."
+INSTRUCTION = "Put the lid on the gift box: seat it fully over the base with the gift inside, square and without wedging it. Leave the box where it is."
 
 
 # -- the parts --------------------------------------------------------------------------------------------------------

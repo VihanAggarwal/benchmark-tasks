@@ -537,7 +537,7 @@ class TaskJson(unittest.TestCase):
                "reset_notes": 580}
         for k, n in lim.items():
             self.assertLessEqual(len(d[k]), n, k)
-        self.assertEqual(d["category"], "Impact on jobs")
+        self.assertEqual(d["category"], "Societal relatability")
         self.assertNotIn(chr(0x2014), json.dumps(d))
 
     def test_instruction_matches_the_task_file(self):
