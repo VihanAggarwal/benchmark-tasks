@@ -488,14 +488,22 @@ class ReleaseAndStill(unittest.TestCase):
         tr = cut_all(S.Tracker())
         res = None
         for i in range(WIN + 2):
-            res = tr.update(scene(dx={1: 0.0005 * i}), FAR)
+            res = tr.update(scene(dx={1: 0.001 * i}), FAR)
         self.assertEqual(res.score, 0.0)
+
+    def test_small_creep_under_5_mm_is_still(self):
+        """Over the last second a piece shifting 3 mm (not visible on video) still counts as still."""
+        tr = cut_all(S.Tracker())
+        res = None
+        for i in range(WIN + 2):
+            res = tr.update(scene(dx={1: 0.00015 * i}), FAR)
+        self.assertEqual(res.score, 1.0)
 
     def test_moving_scraper(self):
         tr = cut_all(S.Tracker())
         res = None
         for i in range(WIN + 2):
-            res = tr.update(scene(sl=scraper_at("left", y=0.30 + 0.0005 * i)), FAR)
+            res = tr.update(scene(sl=scraper_at("left", y=0.30 + 0.001 * i)), FAR)
         self.assertEqual(res.score, 0.0)
 
     def test_still_for_the_whole_second_needed(self):
@@ -639,14 +647,14 @@ class TaskJson(unittest.TestCase):
                "reset_notes": 580}
         for k, n in lim.items():
             self.assertLessEqual(len(d[k]), n, k)
-        self.assertEqual(d["category"], "Impact on jobs")
+        self.assertEqual(d["category"], "Societal relatability")
         self.assertNotIn("—", json.dumps(d))
 
     def test_thresholds_in_text_match_the_code(self):
         import json
         d = json.loads((HERE / "task.json").read_text())
         sc = d["scoring"]
-        for token in ("37 mm", "4 mm", "9.4 mm", "15 degrees", "12 mm", "8 degrees", "30 mm", "1 mm", "0.3 degrees",
+        for token in ("37 mm", "4 mm", "9.4 mm", "15 degrees", "12 mm", "8 degrees", "30 mm", "5 mm", "5 degrees",
                       "36 mm", "10 mm below"):
             self.assertIn(token, sc, token)
         self.assertEqual(L.WEB_THROUGH, 0.037)
@@ -655,6 +663,8 @@ class TaskJson(unittest.TestCase):
         self.assertEqual(L.DRAG_TURN_DEG, 8.0)
         self.assertEqual(L.CUT_X, 0.036)
         self.assertEqual(L.BLADE_UPRIGHT_DEG, 15.0)
+        self.assertEqual(L.STILL_MOVE, 0.005)
+        self.assertEqual(L.STILL_TURN_DEG, 5.0)
 
 
 if __name__ == "__main__":

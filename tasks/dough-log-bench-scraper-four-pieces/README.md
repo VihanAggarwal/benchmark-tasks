@@ -18,7 +18,7 @@ scraper's edge, drag nothing along the bench, put the scrapers down clear of the
 4. **Two hands.** Each arm reaches the table 0.10 to 0.50 m in front of its base and only about 10 cm past the midline at
    low height. With the edge 8 mm over the dough the right arm cannot reach the mark at y +64 mm (IK: not reachable at
    a TCP height of 164 mm, reachable at 158 mm), so the left arm's scraper chops that one.
-5. **Hands off, tools down.** Scored with both grippers 30 mm clear, nothing moving for 1 s, scrapers clear of the dough.
+5. **Hands off, tools down.** Scored with both grippers 30 mm clear, nothing visibly moving for 1 s (under 5 mm and 5 degrees), scrapers clear of the dough.
 
 ## Scoring
 
@@ -29,7 +29,7 @@ scraper's edge, drag nothing along the bench, put the scrapers down clear of the
 | Dragged (latched) | a piece 12 mm or more from its start, or turned 8 degrees or more |
 | In line | every piece's centre within 30 mm of the centre line, in order along y |
 | Tools down | each scraper's lowest point no more than 10 mm below the table, none within 2 mm of a piece |
-| Hands off | last 1 s: finger zones 30 mm or more from every part; each part moves under 1 mm, turns under 0.3 deg |
+| Hands off | last 1 s: finger zones 30 mm or more from every part; each part moves under 5 mm, turns under 5 deg (nothing visibly moves) |
 | Binned (latched) | a piece more than 10 mm below the bench top |
 
 | Outcome | Score |
@@ -50,7 +50,7 @@ Bench check for each condition on a real build:
 | Dragged | 12 mm rule from each piece's start line; 8 degree angle gauge |
 | In line | 30 mm rule from the centre line, order by eye |
 | Tools down | 2 mm feeler gauge against each piece |
-| Hands off | 30 mm spacer against each hand; 30 fps video of the last 1 s; 1 mm mark on the bench |
+| Hands off | 30 mm spacer against each hand; video of the last 1 s shows no piece or scraper visibly move (5 mm mark on the bench) |
 | Binned | 10 mm drop by eye |
 | Portion weights | 1 g scale: each piece within 8 percent of its expected weight (n portions), together at least 85 percent of the weigh-in; see Portion weights below |
 
@@ -108,16 +108,31 @@ writes one line per control step: the strips' depths, cuts, scraper positions, a
 
 ## Sources
 
-- Food preparation workers, SOC 35-2021, 908,500 jobs in 2025: BLS Occupational Outlook Handbook,
-  https://www.bls.gov/ooh/food-preparation-and-serving/food-preparation-workers.htm
 - Bench scraper 6 x 3 in blade with a bar handle: catalogue size of common stainless bench scrapers (handle, thickness and
   mass are our estimates).
 - Bread dough about 1.1 g/mL (est).
 
 ## Real build and reset
 
-The real trial needs only a bench board, two 6 x 3 in bench scrapers and a 0.90 kg dough log (256 x 80 x 40 mm) with
-three marks printed on the board's edge; it cuts real dough, with no slots. Reset: re-form the log, stand the scrapers in their rests.
+Why it matters: home bakers divide a log of dough into equal pieces for rolls and buns with a bench scraper; a ten-second
+clip shows at once what is being done.
+
+Equipment: a bench board, two 6 x 3 in stainless bench scrapers, a 256 x 80 x 40 mm tray or frame (3D-printed or cut from
+board) to shape the log, a ruler, a marker, a 1 g scale. The real trial cuts real dough, with no slots.
+
+Dough (yeast-free, so it does not rise): 560 g plain flour, 330 g water, 10 g salt (900 g, 59 percent water); knead 5 min,
+rest covered 20 min, at a room temperature of 20 to 22 C. Press into the tray, weigh 900 g, turn out. A named
+store-bought refrigerated dough, brought to 20 to 22 C and shaped the same way, is an equal stand-in. Use within 30 min of
+shaping; make a fresh batch per trial (or re-knead the leftovers once).
+
+Bench: wipe, then dust with 5 g flour through a sieve. Marks: with the ruler, mark the bench edge with a marker at 64, 128
+and 192 mm from the right end of the log's start line, 20 mm long.
+
+Reset (a few minutes): re-form the log in the tray, check 900 g, turn out centred at x 220 mm, redo the flour; stand each
+scraper in its rest, blade along x.
+
+Rig protection: the grippers hold only the scrapers' bar handles, never the dough. Fit food-safe nitrile or silicone covers
+on the finger pads, wipe flour and dough off the handles and pads between trials, and wash the scrapers each session.
 
 ## Files
 
@@ -143,3 +158,7 @@ Run on the GPU VM (Isaac Lab-Arena, `object_jitter=0`, 20 Hz, 1600-step limit), 
 
 With one arm idle the demo scores below 1.0 (0.5 and 0.25), so both arms are needed here (point 4 above). Earlier offline
 predictions (`tools/offline/check_task.py`, not measurements) were 1.0, 0.5 and 0.25 for the same three runs.
+
+The demo's 1.0 was measured under the earlier, stricter hands-off check (each part moves under 1 mm and turns under
+0.3 degrees over the last 1 s). That threshold is now 5 mm and 5 degrees, a condition a person can check from ordinary
+trial video; relaxing it cannot lower the demo's score, and the GPU demo has not been re-run under it.

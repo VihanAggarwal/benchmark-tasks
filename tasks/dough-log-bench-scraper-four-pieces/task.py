@@ -221,7 +221,7 @@ def _trace(row: dict) -> None:
 
 def success(objects) -> bool:
     """Three cuts through at the marks by a scraper's edge, no crease, nothing dragged, the pieces in line, both
-    scrapers down clear of the dough, both grippers 30 mm clear and every part still for 1 s, no latched fall; held
+    scrapers down clear of the dough, both grippers 30 mm clear and every part (nearly) still for 1 s, no latched fall; held
     1 s. This runs first every control step, so it also feeds the tracker (and, without a simulator, the offline
     stand-in)."""
     if _EPISODE["mechkit"] != mk.episode():  # mechkit counts resets too: a second, independent reset signal

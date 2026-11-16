@@ -20,7 +20,7 @@ read only for the let-go check.
     TOOLS DOWN      both scrapers' lowest points no lower than 10 mm below the table, and neither within 2 mm of a
                     piece
     RELEASED        on every step of the last 1 s both finger zones are 30 mm or more from all six parts
-    STILL           over the last 1 s every part moved under 1 mm and turned under 0.3 degrees
+    STILL           over the last 1 s every part moved under 5 mm and turned under 5 degrees
 
     0      F1 ever fired, or not released and still, or no cut
     1.0    three cuts, no crease, not dragged, in line, tools down
