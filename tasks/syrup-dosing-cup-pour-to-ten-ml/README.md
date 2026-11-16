@@ -64,7 +64,7 @@ measurement. Rows marked not run have no GPU number.
 
 | Run | What it does | Offline prediction | GPU score |
 |---|---|---|---|
-| Nothing (`DEMO_HOLD_ONLY=1`) | both arms hold still | 0.0 | not run |
+| Nothing (`DEMO_HOLD_ONLY=1`, settle) | both arms hold still | 0.0 | 0.0 (parts stayed put) |
 | Scripted demo | below: 10.08 mL | 1.0 (held from step 442) | 1.0 |
 | `DEMO_IDLE_ARM=right` (left alone) | lifts the cup, sets it down: no pour | 0.0 | 0.0 |
 | `DEMO_IDLE_ARM=left` (right alone) | pours with the cup on the pan, not held | 0.5 (unread syrup caps it) | 0.5 |
@@ -102,7 +102,7 @@ inspect-robots run --embodiment yam_arena --policy yam_scripted -E task=task.py 
 ```
 
 Runtime: the demo is about 430 steps (21 s simulated); a 1,200-step trial takes about 2 to 4 minutes of wall-clock on
-the L40S including start-up (an estimate: no GPU run yet). Seed: nothing is random; `object_jitter=0` fixes the start
+the L40S including start-up (an estimate). Seed: nothing is random; `object_jitter=0` fixes the start
 layout, so no seed is needed. `DEMO_POUR_HOLD=<s>` changes the hold, `DEMO_HOLD_ONLY=1` and `DEMO_IDLE_ARM=left|right`
 are the settle and one-arm checks, `TASK_TRACE=<file>` writes one JSON line per control step (the ledger, both
 parts' poses, both TCPs and openings).
@@ -130,8 +130,7 @@ For Dream-1 use `--policy dream`.
 - The bottle is two cylinders (49 mm body, 28 mm neck); a real bottle has a shoulder and a ribbed neck. Mass 170 g
   (118 mL x 1.30 g/mL of syrup plus 16 g of bottle, rounded).
 - Friction is the simulator's, the same for every part (static 1.2, dynamic 1.0). Viscosity 150 mPa s, density
-  1.30 g/mL and the neck's 3.0 mL/s are estimates; the real trial uses a syrup near 150 mPa s (a glycerol-water mix
-  or a sugar-sorbitol syrup) and times its own flow with the bottle held at 76 degrees over a measuring cylinder.
+  1.30 g/mL and the neck's 3.0 mL/s are estimates; the real trial uses the sugar syrup recipe in "Real build and reset" and times its own flow with the bottle held at 76 degrees over a measuring cylinder.
 
 ## Sources and estimates
 
@@ -144,10 +143,30 @@ For Dream-1 use `--policy dream`.
 
 ## Real build and reset
 
-A 4 fl oz medicine bottle (or a bottle of that size, its cap off) with 118 mL of syrup near 150 mPa s and 1.30 g/mL;
-a 30 mL dosing cup; a pocket scale reading to 0.1 g with its pan about 100 mm across; a 20 mm spacer block, angle
-gauges for 3, 5 and 45 degrees, a ruler, feeler gauges. Reset: the bottle upright on its mark (weigh it: 170 g), the empty cup
-in the middle of the pan, wipe the lip and the pan.
+A 4 fl oz medicine bottle (or a bottle of that size, its cap off); a 30 mL dosing cup; a pocket scale reading to 0.1 g
+with its pan about 100 mm across; a 20 mm spacer block, angle gauges for 3, 5 and 45 degrees, a ruler, feeler gauges;
+a probe thermometer, a 100 mL measuring cylinder, a shallow drip tray, thin nitrile finger sleeves, cling film.
+
+**Syrup (standard, repeatable, a few minutes to make).** Plain sugar syrup from supermarket granulated sugar and tap
+water: 640 g sugar into 360 g water, warmed and stirred until clear, cooled in a sealed jar to 20 C (+/- 1 C, probe
+thermometer; the room is held at 20 +/- 2 C). Check by weight: 100 mL in the measuring cylinder weighs 130 g
+(+/- 1 g), i.e. 1.30 g/mL; correct by adding a little water or sugar. Viscosity is about 150 mPa s at 20 C and rises
+steeply as it cools (roughly 10 percent per degree), so keep to the temperature. Use within 8 h of cooling, or keep
+sealed in a fridge for up to a week and bring back to 20 C, stirring gently so no foam forms. Do not reuse syrup that
+has been poured into the cup or touched anything. Flow check at the start of each session: hold the filled bottle at 76
+degrees over a measuring cylinder; it must pass 2.5 to 3.5 mL/s (the model's 3.0 mL/s); if slower add 10 g of water
+per kg of syrup, if faster add 10 g of sugar per kg, then check again.
+
+**Protecting the rig.** Fit thin disposable nitrile sleeves over both grippers' pads (they grip the bottle and the cup,
+which get sticky) and lay cling film over the scale's pan, tare the scale with the film and empty cup on it, and run
+everything inside a shallow drip tray larger than the pan and the bottle's mark, so spills never reach the scale
+or the pads.
+
+**Reset and cleanup.** Before each trial: the bottle upright on its mark with 118 mL of 20 C syrup (weigh it: 170 g), the
+empty cup in the middle of the pan, the lip and the bottle's body wiped. After each trial: wipe spills with a damp cloth
+(sugar syrup dissolves in water), then dry; replace the finger sleeves and the film if they are wet or tacky; empty
+and rinse the drip tray in warm water; rinse and dry the cup between trials and check that the scale still tares
+to zero. Dried syrup is hard to remove, so do not let it stand.
 
 ## Files
 
