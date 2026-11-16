@@ -270,6 +270,23 @@ class Geometry(unittest.TestCase):
         self.assertAlmostEqual(unit_tilt_deg(unit_at(quat=about("y", 90))), 90.0, places=4)  # lying on a face
         self.assertAlmostEqual(unit_tilt_deg(leaning(48)), 48.0, places=4)
 
+    def test_block_yaw_is_the_same_after_a_quarter_turn(self):
+        # the blocks are 30 x 30 mm: turned 90 degrees one is indistinguishable, so it must score the same
+        self.assertEqual(L.BLOCK_SIZE[0], L.BLOCK_SIZE[1])
+        for d in (0, 5, 10, 14, 20, 30, 44):
+            base = block_yaw_err_deg(about("z", d))
+            for k in (1, 2, 3, -1):
+                self.assertAlmostEqual(block_yaw_err_deg(about("z", d + 90 * k)), base, places=4)
+        self.assertAlmostEqual(block_yaw_err_deg(about("z", 90)), 0.0, places=4)
+        self.assertAlmostEqual(block_yaw_err_deg(about("z", 100)), 10.0, places=4)
+        self.assertAlmostEqual(block_yaw_err_deg(about("z", 45)), 45.0, places=4)
+
+    def test_block_set_equally_when_turned_a_quarter(self):
+        for d, want in ((0, 0), (10, 0), (14, 0), (20, None), (40, None)):
+            for k in (0, 1, -1, 2):
+                blk = block_at(L.MARK_X, L.MARK_YS[0], quat=about("z", d + 90 * k))
+                self.assertEqual(block_set_on(blk, 0.008), want, (d, k))
+
     def test_block_yaw_has_two_ways_round(self):
         self.assertAlmostEqual(block_yaw_err_deg(about("z", 10)), 10.0, places=4)
         self.assertAlmostEqual(block_yaw_err_deg(about("z", 175)), 5.0, places=4)

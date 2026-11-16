@@ -85,10 +85,11 @@ def folded_tilt_deg(quat_xyzw) -> float:
 
 
 def block_yaw_err_deg(quat_xyzw) -> float:
-    """How far a block's sides are turned from the opening's (0..90 degrees; a rectangle has 2 ways round)."""
+    """How far a block's sides are turned from the opening's (0..45 degrees). The blocks are square (30 x 30 mm), so
+    a quarter turn leaves them looking and sitting the same: the turn is taken modulo 90 degrees."""
     r = rotation(quat_xyzw)
-    a = math.degrees(math.atan2(r[1, 0], r[0, 0])) % 180.0
-    return float(min(a, 180.0 - a))
+    a = math.degrees(math.atan2(r[1, 0], r[0, 0])) % 90.0
+    return float(min(a, 90.0 - a))
 
 
 def _up(r: np.ndarray) -> np.ndarray:

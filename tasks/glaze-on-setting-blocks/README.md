@@ -118,8 +118,9 @@ scores 0 for that step, keeps the sill record and restarts the let-go and stilln
 **Standing in the rebate**: all eight corners of the unit inside the opening seen from above (from the frame's room
 face to the outside stop, between the jambs; 1 mm slack), its outside face within 3 mm of the outside stop, and its
 height axis under 3 degrees from vertical. A block is **set** on a mark when it lies flat on the sill in the opening
-(its lowest point within 1 mm of the sill's or a mark's top), is let go and still, is square within 15 degrees and
-its centre is within 8 mm of the mark's. The unit **rests on** a block only when the unit and that block are both
+(its lowest point within 1 mm of the sill's or a mark's top), is let go and still, is square within 15 degrees (the
+blocks are square, so a quarter turn changes nothing) and its centre is within 8 mm of the mark's. The unit **rests
+on** a block only when the unit and that block are both
 let go and still, at least half of the block's top (the real outlines seen from above) is under the unit's
 underside, and the underside is within 1 mm of the block's top. A unit still leaning on its bottom edge, or held,
 rests on nothing. The unit and the blocks are plain boxes, the same either way up.
