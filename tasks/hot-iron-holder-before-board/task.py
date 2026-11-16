@@ -370,7 +370,7 @@ def plans(variant: str = "") -> dict:
 def demo():
     """Both arms. DEMO_HOLD_ONLY=1: no plan. DEMO_IDLE_ARM=left|right: that arm's plan is dropped.
     DEMO_VARIANT (counterfactual runs for the README, never the submitted demo):
-      push_aside     the left pushes the iron by its handle to the mat's front strip, then places the board: 0.25
+      push_aside     the left pushes the iron by its handle to the mat's front strip, then places the board: 0
       board_on_iron  the left puts the board straight down where the iron lies: 0
       grab_metal     the right picks the iron up by its metal barrel and moves it aside; the board placed: 0
       holster_only   the right puts the iron in its holder, the board stays where it is: 0.5"""

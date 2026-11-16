@@ -22,8 +22,8 @@
     1.0   IN HOLDER, PLACED and CLEAR on each of the last 20 steps, and STILL
     0.75  IN HOLDER and the board standing on the mat (NEAR), not 1.0 (centre 40 to 100 mm out, or a gripper near)
     0.5   IN HOLDER, the board not on the mat
-    0.25  PLACED, the iron not in its holder
-    0     anything else, or a HAZARD at any step so far.
+    0     anything else (the iron not in its holder earns nothing, whatever the board does), or a HAZARD at any
+          step so far.
 
 Fail closed: a step whose states or arms cannot be read scores 0 and restarts the 20-step window.
 """
@@ -257,8 +257,6 @@ class Tracker:
             score = 0.75
         elif in_h:
             score = 0.5
-        elif placed:
-            score = 0.25
         else:
             score = 0.0
         details = {"in_holder": in_h, "cage": hd, "held_gap_mm": round(held_gap * 1000, 1), "board_on_mat": on,

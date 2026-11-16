@@ -219,10 +219,12 @@ class ScoringTests(unittest.TestCase):
         st[S.BOARD] = board(z=L.MAT_TOP + 0.004)  # on something 4 mm thick (the cord)
         self.assertEqual(run(st)[0].score, 0.5)
 
-    def test_iron_left_lying_board_placed_is_a_quarter(self):
+    def test_iron_left_lying_board_placed_is_zero(self):
         st = good()
         st[S.IRON] = iron_lying(dx=-0.08)
-        self.assertEqual(run(st)[0].score, 0.25)
+        res = run(st)[0]
+        self.assertTrue(res.details["placed"])
+        self.assertEqual(res.score, 0.0)
 
     def test_nothing_done_is_zero(self):
         st = {S.IRON: iron_lying(), S.BOARD: board_start(), S.HOLDER: holder()}
@@ -240,7 +242,7 @@ class ScoringTests(unittest.TestCase):
         arms["right"] = rigstate.Arm(tcp, tips, 0.13)
         res, _ = run(good(), arms)
         self.assertFalse(res.details["in_holder"])
-        self.assertEqual(res.score, 0.25)
+        self.assertEqual(res.score, 0.0)
 
     def test_axis_and_depth(self):
         st = good()
@@ -409,7 +411,7 @@ class OfflineTaskTests(unittest.TestCase):
 
     def test_one_arm_and_wrong_ways_offline(self):
         expect = {("DEMO_IDLE_ARM", "left"): 0.5, ("DEMO_IDLE_ARM", "right"): 0.0,
-                  ("DEMO_VARIANT", "push_aside"): 0.25, ("DEMO_VARIANT", "board_on_iron"): 0.0,
+                  ("DEMO_VARIANT", "push_aside"): 0.0, ("DEMO_VARIANT", "board_on_iron"): 0.0,
                   ("DEMO_VARIANT", "grab_metal"): 0.0, ("DEMO_VARIANT", "holster_only"): 0.5}
         for (k, v), want in expect.items():
             with self.subTest(**{k: v}):
@@ -459,7 +461,7 @@ class FolderTests(unittest.TestCase):
             self.assertNotIn(word, low)  # the goal only: no method
         for needle in ("217", "46 g", "1.2 m", "40 degrees", "18 bore", "30 bore"):
             self.assertIn(needle, spec["setup"], needle)
-        for needle in ("1 mm", "10 degrees", "2 mm", "40 mm", "3 cm", "0.25"):
+        for needle in ("1 mm", "10 degrees", "2 mm", "40 mm", "3 cm", "0.5"):
             self.assertIn(needle, spec["scoring"], needle)
         self.assertIn("est", spec["fidelity"])
         if OFFLINE is not None:

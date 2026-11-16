@@ -66,7 +66,8 @@ the cord, the station, the holder's base or posts, or the bench top off the mat;
 the holder tipped over 20 degrees or moved over 2 cm; the cord pulled straight. Then 1.0 iron in its holder (metal
 front inside the cage, within 10 degrees of its axis, not held), board placed (four feet within 2 mm of the mat, centre
 within 40 mm of the mat's centre), both grippers 3 cm clear, all still for 1 s; 0.75 iron in, board on the mat 40 to
-100 mm out or a gripper near; 0.5 iron in, board not on the mat; 0.25 board placed, iron not in its holder; 0 else.
+100 mm out or a gripper near; 0.5 iron in, board not on the mat; 0 else. The iron left lying anywhere
+earns 0, whatever the board does.
 Fail closed: unreadable arms or states score 0.
 
 ## Demo (task.py), 31.4 s, 628 steps, stopped at 689
@@ -94,26 +95,28 @@ holder pose and tilt, both TCPs and openings, every scorer flag).
 
 | Run | Offline | GPU |
 |---|---|---|
-| Demo | 1.0 (success at step 615) | to be run |
-| Left arm idle (right alone) | 0.5 | to be run |
-| Right arm idle (left alone: the board goes onto the lying iron) | 0.0 | to be run |
-| `push_aside`: the iron pushed by its handle to the mat's front strip, board placed | 0.25 | to be run |
-| `board_on_iron`: board put straight down where the iron lies | 0.0 | to be run |
-| `grab_metal`: the iron picked up by its barrel and moved aside, board placed | 0.0 (latched at step 80) | to be run |
-| `holster_only`: iron in its holder, board left on the bench | 0.5 | to be run |
+| Demo | 1.0 (success at step 615) | 1.0 |
+| Left arm idle (right alone) | 0.5 | 0.5 |
+| Right arm idle (left alone: the board goes onto the lying iron) | 0.0 | 0.0 |
+| `push_aside`: the iron pushed by its handle to the mat's front strip, board placed | 0.0 | not run |
+| `board_on_iron`: board put straight down where the iron lies | 0.0 | not run |
+| `grab_metal`: the iron picked up by its barrel and moved aside, board placed | 0.0 (latched at step 80) | not run |
+| `holster_only`: iron in its holder, board left on the bench | 0.5 | not run |
 
 The spec's fifth wrong way (the iron pushed off the mat until its tip touches the bench) is left out: this iron lies
 on its grip with its metal 3 mm or more off the mat, so a push does not bring the tip down; the bench-contact
 rule stays in the scorer and its tests. One arm alone cannot do the task (the left cannot reach the holder, the
 right cannot reach the board), but the text makes no two-arm claim.
 
-GPU results: to be run.
+GPU results: the demo and one-arm runs are in the table under Results in simulation.
+The wrong-way variants were not run on the GPU.
 
 ## What only the GPU can tell
 
 - The cord: 48 links of 0.6 g with a 46 g iron on the end, anchored at the station. Does it lie still at spawn
   (settle run), and where does its slack land when the iron is lifted 160 mm and carried 210 mm? If it comes to lie
-  under a standoff the board is not placed; if it pulls the iron out of the cage the score drops to 0.25.
+  under a standoff the board is not placed; if it pulls the iron out of the cage the score
+  drops to 0 (an iron not in its holder earns nothing).
 - The slide: open loop down a 40 degree axis with 2 mm a side round the nut; the wrist is soft (10 N m/rad) and the
   roll sits 8.8 degrees from joint 4's limit.
 - The board grip: pads on 1.6 mm edges.
@@ -134,4 +137,7 @@ Measured on an L40S (Isaac Lab-Arena, object jitter 0, 20 Hz control), one trial
 | Scripted demo (`demo()` as written) | 1.0 |
 | Scripted demo, left arm idle (`DEMO_IDLE_ARM=left`) | 0.5 |
 | Scripted demo, right arm idle (`DEMO_IDLE_ARM=right`) | 0.0 |
-| Dream-1 | n/a |
+| Dream-1 | 0.0 (full run limit; the arms moved, no part reached its goal) |
+
+One earlier Dream-1 attempt was refused by the Dream service before acting ("DA-4000 ... unsafe instruction in this
+scene"); the run reported here is a later attempt that ran to the limit and scored 0.0.
