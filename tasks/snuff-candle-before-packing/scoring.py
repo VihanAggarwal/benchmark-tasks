@@ -7,8 +7,9 @@ the mechkit AssemblyState of the candlestick, the snuffer and the vase (frames: 
                 wick for 1.5 s without a break: the bell mouth-down within 20 degrees, its mouth (rim plane) at or
                 below the wick's tip and its axis within 8 mm of the wick (top view). Nothing else puts it out and
                 nothing relights it. This is the simulator proxy only: a real trial reads the actual flame from the top
-                and side videos (out from the first frame after which none is visible, through the last frame and for
-                at least the last 3 s; seen again later = lit), and the bell is not scored there.
+                and side videos: out only from the first frame after which, through the last frame and for at least the
+                last 3 s, the snuffer is clear of the wick and the wick is plainly in view, flame-free, in both videos
+                (a wick hidden by the bell counts as lit; seen again later = lit).
     MOVED       (latched) at any step the chamberstick's centre is 10 mm or more (top view) from where it stood at
                 the first step, or 5 mm higher or lower, or it tips 10 degrees or more. The NCA: "Don't move a candle
                 while the wax is liquid" and, after snuffing, "Don't touch or move the candle until the wax has

@@ -59,10 +59,16 @@ The taper is lit at the start. It goes out once the bell has covered the wick fo
 within 20 degrees, its mouth at or below the wick's tip, its axis within 8 mm of the wick seen from above. Nothing
 else puts it out and it never relights. This is a simulator proxy: there is no fire in the simulator, and on a real
 bench a held bell puts a taper out in about that time (our estimate), which a real taper may not do. In a real trial
-the proxy is not used: the flame is read from the top and side videos and counts as out only from the first frame
-after which no flame is visible in either video through the last frame (so out for at least the last 3 s; a flame seen
-again later, or never out, counts as lit; a glowing wick without a flame counts as out). The bell and the 1.5 s are
-not scored then. In the simulator the drawn flame is a 2 g link on a slider: while lit it stands on the wick, once out
+the proxy is not used: the flame is read from video and counts as out only from the first frame after which, through the
+last frame and for at least the last 3 s, (a) the snuffer is clear of the wick (bell mouth at least 50 mm away, not over
+it) and (b) the wick and the 40 mm above its tip are plainly in view and flame-free in both videos. A frame where
+either video does not show the wick (hidden by the bell, an arm, the vase or glare) counts as lit, so a flame hidden
+by the snuffer is never out; a flame seen again later counts as lit; a glowing wick without a flame counts as out.
+Views: a top camera straight down over the chamberstick with the box, snuffer and vase in frame, and a side camera
+at the wick's height (110 to 120 mm up) on the far side of the table looking back toward the robot along x, centred on
+y +70, wick at least 80 px tall; both show the lit flame in the first frame. Live-flame trials: fire-resistant bench
+covering, a supervisor and an extinguisher within reach. The 1.5 s is
+not used then. In the simulator the drawn flame is a 2 g link on a slider: while lit it stands on the wick, once out
 it is driven 35 mm down inside the taper, out of sight (a display only; the scorer keeps its own state). Heat, smoke
 and wax are not simulated.
 
@@ -83,7 +89,7 @@ its lowest point below the 104 mm walls. Packed: in the box, base within 5 mm of
 A vase in the box that is lying or tilted over 10 degrees, more than 5 mm above the paper, has a finger within 3 cm,
 or moved 2 mm or more in the last 1 s stays at 0.75.
 
-Bench: tape marks round the saucer (10 mm), a ruler, a top and a side video.
+Bench: tape marks round the saucer (10 mm), a ruler, a top and a side video (views as above), a fire-resistant covering.
 
 ## Offline predictions (tools/offline/check_task.py, carry and drop only, no physics)
 
@@ -141,7 +147,7 @@ pose, in-box and entry flags, both TCPs and openings).
 A brass chamberstick, white 7/8 in tapers cut to 60 mm above the socket, a hand-held bell snuffer, a small ceramic vase,
 a corrugated box taped to the table with a sheet of packing paper in it, tape marks round the saucer. Reset: relight or
 replace the taper (trim the wick to 6 mm), stand everything on its marks, take the vase out of the box, flatten the
-sheet.
+sheet. Work on a fire-resistant covering with a supervisor and an extinguisher in reach.
 
 ## Files
 
