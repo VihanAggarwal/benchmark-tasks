@@ -6,7 +6,9 @@ the mechkit AssemblyState of the candlestick, the snuffer and the vase (frames: 
     FLAME (the one declared rule) The taper is lit at the start. It goes out once the snuffer's bell has covered the
                 wick for 1.5 s without a break: the bell mouth-down within 20 degrees, its mouth (rim plane) at or
                 below the wick's tip and its axis within 8 mm of the wick (top view). Nothing else puts it out and
-                nothing relights it.
+                nothing relights it. This is the simulator proxy only: a real trial reads the actual flame from the top
+                and side videos (out from the first frame after which none is visible, through the last frame and for
+                at least the last 3 s; seen again later = lit), and the bell is not scored there.
     MOVED       (latched) at any step the chamberstick's centre is 10 mm or more (top view) from where it stood at
                 the first step, or 5 mm higher or lower, or it tips 10 degrees or more. The NCA: "Don't move a candle
                 while the wax is liquid" and, after snuffing, "Don't touch or move the candle until the wax has
@@ -23,7 +25,7 @@ the mechkit AssemblyState of the candlestick, the snuffer and the vase (frames: 
     0      MOVED; or the flame is lit at the end; or the vase or snuffer off the table
     0.25   LIT ENTRY (the flame out at the end)
     0.5    the flame out, the vase not in the box
-    0.75   the flame out before the vase came in, the vase in the box, but not packed, released and still
+    0.75   the flame out before the vase came in, the vase in the box, but not all of packed, released and still
     1.0    the flame out before the vase came in, the vase packed, released and still     (held 1 s: success)
 """
 
