@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 1040" width="1300" height="1040">
+<rect x="0.0" y="0.0" width="1300.0" height="1040.0" fill="#ffffff" stroke="none" stroke-width="0"/>
+<text x="650.0" y="30.0" font-size="18" text-anchor="middle" font-weight="600" fill="#111" font-family="Helvetica, Arial, sans-serif">Desk phone and handset: dimensions in millimetres (panels are not to one scale)</text>
+<text x="290.0" y="100.0" font-size="15" text-anchor="middle" font-weight="600" fill="#111" font-family="Helvetica, Arial, sans-serif">A. Phone from above, handset seated (dashed)</text>
+<rect x="50.0" y="180.0" width="480.0" height="400.0" fill="#dcdce0" stroke="#222" stroke-width="1.6"/>
+<rect x="88.0" y="320.0" width="116.0" height="120.0" fill="#b8c4dc" stroke="#222" stroke-width="1.6"/>
+<rect x="342.0" y="312.0" width="164.0" height="136.0" fill="#b8c4dc" stroke="#222" stroke-width="1.6"/>
+<circle cx="274.0" cy="380.0" r="14.0" fill="#b3261e" stroke="#222"/>
+<text x="274.0" y="408.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">hook switch</text>
+<text x="274.0" y="426.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">(14 across)</text>
+<rect x="100.0" y="336.0" width="92.0" height="88.0" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="6 3"/>
+<rect x="354.0" y="328.0" width="140.0" height="104.0" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="6 3"/>
+<rect x="170.0" y="346.0" width="260.0" height="68.0" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="6 3"/>
+<text x="146.0" y="288.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">earpiece cup</text>
+<text x="424.0" y="288.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">mouthpiece cup</text>
+<text x="146.0" y="467.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">ear pad 46 x 44</text>
+<text x="424.0" y="467.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">mouth pad 70 x 52</text>
+<text x="290.0" y="520.0" font-size="11" text-anchor="middle" font-weight="400" fill="#555" font-family="Helvetica, Arial, sans-serif">keypad side (toward the robot)</text>
+<line x1="50.0" y1="144.0" x2="530.0" y2="144.0" stroke="#a00" stroke-width="1"/>
+<line x1="50.0" y1="140.0" x2="50.0" y2="148.0" stroke="#a00" stroke-width="1"/>
+<line x1="530.0" y1="140.0" x2="530.0" y2="148.0" stroke="#a00" stroke-width="1"/>
+<text x="290.0" y="139.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">240 (y)</text>
+<line x1="556.0" y1="180.0" x2="556.0" y2="580.0" stroke="#a00" stroke-width="1"/>
+<line x1="552.0" y1="180.0" x2="560.0" y2="180.0" stroke="#a00" stroke-width="1"/>
+<line x1="552.0" y1="580.0" x2="560.0" y2="580.0" stroke="#a00" stroke-width="1"/>
+<text x="563.0" y="384.0" font-size="12" text-anchor="start" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">200 (x)</text>
+<line x1="88.0" y1="168.0" x2="204.0" y2="168.0" stroke="#a00" stroke-width="1"/>
+<line x1="88.0" y1="164.0" x2="88.0" y2="172.0" stroke="#a00" stroke-width="1"/>
+<line x1="204.0" y1="164.0" x2="204.0" y2="172.0" stroke="#a00" stroke-width="1"/>
+<text x="146.0" y="163.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">58</text>
+<line x1="342.0" y1="168.0" x2="506.0" y2="168.0" stroke="#a00" stroke-width="1"/>
+<line x1="342.0" y1="164.0" x2="342.0" y2="172.0" stroke="#a00" stroke-width="1"/>
+<line x1="506.0" y1="164.0" x2="506.0" y2="172.0" stroke="#a00" stroke-width="1"/>
+<text x="424.0" y="163.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">82</text>
+<line x1="204.0" y1="604.0" x2="342.0" y2="604.0" stroke="#a00" stroke-width="1"/>
+<line x1="204.0" y1="600.0" x2="204.0" y2="608.0" stroke="#a00" stroke-width="1"/>
+<line x1="342.0" y1="600.0" x2="342.0" y2="608.0" stroke="#a00" stroke-width="1"/>
+<text x="273.0" y="599.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">flat top 69 (y -26 to +43)</text>
+<text x="290.0" y="636.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">Cups 10 deep: ear 58 (y) x 60 (x), mouth 82 x 68; pads clear 6 each end, 8 each side.</text>
+<text x="290.0" y="654.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">Phone 55 high, 1.10 kg, loose on rubber feet.</text>
+<text x="290.0" y="672.0" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">Plunger at y +8, x 0; free top 63 over the desk.</text>
+<text x="880.0" y="100.0" font-size="15" text-anchor="middle" font-weight="600" fill="#111" font-family="Helvetica, Arial, sans-serif">B. Handset from the side (pad bottoms down)</text>
+<rect x="736.0" y="194.8" width="312.0" height="81.6" fill="#b4b4be" stroke="#111" stroke-width="1.6"/>
+<rect x="652.0" y="242.8" width="110.4" height="67.2" fill="#9a9aa6" stroke="#111" stroke-width="1.6"/>
+<rect x="956.8" y="242.8" width="168.0" height="67.2" fill="#9a9aa6" stroke="#111" stroke-width="1.6"/>
+<line x1="604.0" y1="310.0" x2="1156.0" y2="310.0" stroke="#555" stroke-width="1" stroke-dasharray="5 3"/>
+<text x="707.2" y="297.2" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">earpiece pad</text>
+<text x="1040.8" y="297.2" font-size="12" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">mouthpiece pad</text>
+<text x="892.0" y="227.6" font-size="13" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">handle</text>
+<line x1="652.0" y1="366.0" x2="1124.8" y2="366.0" stroke="#a00" stroke-width="1"/>
+<line x1="652.0" y1="362.0" x2="652.0" y2="370.0" stroke="#a00" stroke-width="1"/>
+<line x1="1124.8" y1="362.0" x2="1124.8" y2="370.0" stroke="#a00" stroke-width="1"/>
+<text x="888.4" y="361.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">197 long (y -102 to +95)</text>
+<line x1="652.0" y1="336.0" x2="762.4" y2="336.0" stroke="#a00" stroke-width="1"/>
+<line x1="652.0" y1="332.0" x2="652.0" y2="340.0" stroke="#a00" stroke-width="1"/>
+<line x1="762.4" y1="332.0" x2="762.4" y2="340.0" stroke="#a00" stroke-width="1"/>
+<text x="707.2" y="331.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">46</text>
+<line x1="956.8" y1="336.0" x2="1124.8" y2="336.0" stroke="#a00" stroke-width="1"/>
+<line x1="956.8" y1="332.0" x2="956.8" y2="340.0" stroke="#a00" stroke-width="1"/>
+<line x1="1124.8" y1="332.0" x2="1124.8" y2="340.0" stroke="#a00" stroke-width="1"/>
+<text x="1040.8" y="331.0" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">70</text>
+<line x1="736.0" y1="175.6" x2="1048.0" y2="175.6" stroke="#a00" stroke-width="1"/>
+<line x1="736.0" y1="171.6" x2="736.0" y2="179.6" stroke="#a00" stroke-width="1"/>
+<line x1="1048.0" y1="171.6" x2="1048.0" y2="179.6" stroke="#a00" stroke-width="1"/>
+<text x="892.0" y="170.6" font-size="12" text-anchor="middle" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">handle 130 long (y -70 to +60)</text>
+<line x1="1144.8" y1="242.8" x2="1144.8" y2="310.0" stroke="#a00" stroke-width="1"/>
+<line x1="1140.8" y1="242.8" x2="1148.8" y2="242.8" stroke="#a00" stroke-width="1"/>
+<line x1="1140.8" y1="310.0" x2="1148.8" y2="310.0" stroke="#a00" stroke-width="1"/>
+<text x="1151.8" y="280.4" font-size="12" text-anchor="start" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">28</text>
+<line x1="1186.8" y1="194.8" x2="1186.8" y2="276.4" stroke="#a00" stroke-width="1"/>
+<line x1="1182.8" y1="194.8" x2="1190.8" y2="194.8" stroke="#a00" stroke-width="1"/>
+<line x1="1182.8" y1="276.4" x2="1190.8" y2="276.4" stroke="#a00" stroke-width="1"/>
+<text x="1193.8" y="239.6" font-size="12" text-anchor="start" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">34</text>
+<line x1="1228.8" y1="276.4" x2="1228.8" y2="310.0" stroke="#a00" stroke-width="1"/>
+<line x1="1224.8" y1="276.4" x2="1232.8" y2="276.4" stroke="#a00" stroke-width="1"/>
+<line x1="1224.8" y1="310.0" x2="1232.8" y2="310.0" stroke="#a00" stroke-width="1"/>
+<text x="1235.8" y="297.2" font-size="12" text-anchor="start" font-weight="400" fill="#a00" font-family="Helvetica, Arial, sans-serif">14</text>
+<text x="690.0" y="390.0" font-size="12" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">Heights: pads 28; handle round, 34 across (from 14 to 48 over the pad bottoms); arch clearance 14.</text>
+<text x="690.0" y="406.0" font-size="12" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">Pad centres at y +72 (ear) and -67 (mouth), 139 apart; handle centred at y -5.</text>
+<text x="690.0" y="422.0" font-size="12" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">Widths (x): ear pad 44, mouth pad 52, handle 34 (round). 0.17 kg. Pad edges square.</text>
+<text x="690.0" y="438.0" font-size="12" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">The flat pad bottoms go into the cups. It is held across the handle (34 mm) at y -10.</text>
+<text x="880.0" y="560.0" font-size="15" text-anchor="middle" font-weight="600" fill="#111" font-family="Helvetica, Arial, sans-serif">C. Start layout from above (robot at the bottom, x up, y to the left)</text>
+<circle cx="1047.8" cy="1000.0" r="9" fill="#444"/>
+<circle cx="712.2" cy="1000.0" r="9" fill="#444"/>
+<text x="712.2" y="986.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">left arm base (idle)</text>
+<text x="1047.8" y="986.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">right arm base</text>
+<rect x="814.0" y="780.0" width="132.0" height="110.0" fill="#dcdce0" stroke="#222" stroke-width="1.6"/>
+<text x="880.0" y="831.0" font-size="13" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">phone</text>
+<text x="880.0" y="847.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">centre x 300, y 0</text>
+<rect x="986.7" y="841.6" width="28.6" height="38.5" fill="#9a9aa6" stroke="#222" stroke-width="1.5"/>
+<rect x="988.9" y="771.8" width="24.2" height="25.3" fill="#9a9aa6" stroke="#222" stroke-width="1.5"/>
+<rect x="991.6" y="797.0" width="18.7" height="44.6" fill="#b4b4be" stroke="#222" stroke-width="1.5"/>
+<text x="1023.0" y="788.4" font-size="11" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">earpiece pad, x 392</text>
+<text x="1023.0" y="864.9" font-size="11" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">mouthpiece pad, x 253</text>
+<text x="1023.0" y="828.0" font-size="11" text-anchor="start" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">handset face down, y -220</text>
+<rect x="814.0" y="648.0" width="132.0" height="88.0" fill="#555" stroke="#222" stroke-width="1.3"/>
+<rect x="737.0" y="685.1" width="286.0" height="13.8" fill="#222" stroke="#222" stroke-width="1.3"/>
+<text x="880.0" y="663.0" font-size="11" text-anchor="middle" font-weight="400" fill="#fff" font-family="Helvetica, Arial, sans-serif">monitor foot, x 560</text>
+<text x="880.0" y="680.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">monitor panel</text>
+<circle cx="783.8" cy="802.0" r="22.0" fill="#4a68a8" stroke="#222"/>
+<text x="783.8" y="774.0" font-size="11" text-anchor="middle" font-weight="400" fill="#111" font-family="Helvetica, Arial, sans-serif">pen pot (80 x 100)</text>
+<text x="783.8" y="806.0" font-size="10" text-anchor="middle" font-weight="400" fill="#fff" font-family="Helvetica, Arial, sans-serif">x 360, y +175</text>
+<path d="M 1001.0 829.5 L 885.5 835.0" stroke="#1b7a2f" stroke-width="2" fill="none" stroke-dasharray="7 4"/>
+<text x="946.0" y="902.5" font-size="11" text-anchor="middle" font-weight="400" fill="#1b7a2f" font-family="Helvetica, Arial, sans-serif">carried, turned a quarter turn</text>
+</svg>
