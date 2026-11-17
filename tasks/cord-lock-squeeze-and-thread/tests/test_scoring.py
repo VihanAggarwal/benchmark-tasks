@@ -67,13 +67,13 @@ def cord(line):
 
 
 def stations():
-    """Arc lengths of the 18 line points from end 0: 0, 10, 30, ..., 310, 320 mm."""
+    """Arc lengths of the 33 line points from end 0: 0, 10, 30, ..., 610, 620 mm."""
     n = int(round(L.CORD_LEN / L.CORD_SEGMENT))
     return np.array([0.0, *[(i + 0.5) * L.CORD_SEGMENT for i in range(n)], L.CORD_LEN])
 
 
 def path_line(pieces, start, heading):
-    """Sample a unit-speed path in a horizontal plane at the 18 stations. ``pieces``: ("s", length) straight or
+    """Sample a unit-speed path in a horizontal plane at the 33 stations. ``pieces``: ("s", length) straight or
     ("a", radius, turn) arc (turn > 0 to the left); ``start`` (x, y, z) at end 0, ``heading`` rad."""
     out = []
     for s in stations():
@@ -209,7 +209,8 @@ class Geometry(unittest.TestCase):
 
     def test_cord(self):
         c = T.CORD_SPEC
-        self.assertEqual(c.segments, 16)
+        self.assertEqual(c.segments, 31)
+        self.assertAlmostEqual(c.length, 0.620, places=9)
         self.assertAlmostEqual(c.bend_stiffness * c.seg_len, 1e-3, places=12)  # EI
         w = L.CORD_MASS / L.CORD_LEN * 9.81
         self.assertAlmostEqual(w * 0.06 ** 4 / (8 * 1e-3) * 1000, 0.73, delta=0.01)  # 60 mm droops 0.7 mm
@@ -221,8 +222,43 @@ class Geometry(unittest.TestCase):
         self.assertEqual(c.collision_sides, 16)
         self.assertIsInstance(c, cablekit.Cable)
         line = OC.start_line()
-        self.assertTrue(np.allclose(line[0], (0.300, -0.060, TOP + L.CORD_R)))
-        self.assertTrue(np.allclose(line[-1], (0.300, -0.380, TOP + L.CORD_R)))
+        self.assertTrue(np.allclose(line[0], (0.300, 0.007, TOP + L.CORD_R)))
+        self.assertTrue(np.allclose(line[-1], (0.300, -0.613, TOP + L.CORD_R)))
+
+    def test_bag_loop_and_knot(self):
+        """The duffel is fixed and clear of the cord; the cord runs free through its lash loop; the knot is too wide
+        for the loop and lies 200 mm behind it, more than any planned push slides the cord."""
+        self.assertIsNone(T.BAG.mass)
+        self.assertTrue(all(b.mass is None for b in T.LOOP))
+        self.assertAlmostEqual(T.BAG.size[0] * 39.37, 23.625, delta=0.02)  # the maker's 23.625 x 9.5 x 11 in.
+        self.assertAlmostEqual(T.BAG.size[2] * 39.37, 9.5, delta=0.02)
+        self.assertAlmostEqual(T.BAG.size[1] * 39.37, 11.0, delta=0.02)
+        self.assertGreaterEqual(L.BAG_X0 - (L.CORD_X + L.CORD_R), 0.005 - 1e-9)  # the cord 5 mm from the end panel
+        lo, hi = L.LOOP_IN_X
+        self.assertGreater(L.CORD_X - L.CORD_R - lo, 0.006)  # 7 mm from the strip
+        self.assertGreater(L.LOOP_H - L.CORD_D, 0.008)  # 8.1 mm above the lying cord
+        self.assertGreater(L.KNOT_SIZE[1], hi - lo)  # the knot cannot pass the 20 mm loop
+        self.assertLessEqual(L.LOOP_Y + L.LOOP_W / 2, L.BAG_Y[1])  # the loop on the end panel
+        self.assertAlmostEqual(L.knot_slack(), 0.1805, places=9)
+        self.assertEqual(T.CORD_SPEC.end_plug.size, L.KNOT_SIZE)
+        self.assertIsNone(T.CORD_SPEC.start_plug)
+        self.assertGreaterEqual(L.CORD_END0_Y - L.CORD_LEN - L.KNOT_SIZE[0], -0.650)  # the knot on the table
+
+    def test_pushes_within_the_knot_slack(self):
+        """Every plan slides the cord toward the lock by at most the right TCP's travel along +y after its grip: it
+        must stay under the 180.5 mm before the knot meets the loop (the demo: 88 mm)."""
+        for v in ("", "naive", "short", "keep_lock", "keep_cord", "early_lock", "in_place"):
+            os.environ["DEMO_VARIANT"] = v
+            try:
+                wps = T.demo()["right"]
+            finally:
+                os.environ.pop("DEMO_VARIANT", None)
+            grip = next(i for i, w in enumerate(wps) if w.label == "grip the cord")
+            y0 = wps[grip].pos[1]
+            slide = max(w.pos[1] for w in wps[grip:] if w.finger <= T.CORD_GRIP + 1e-9) - y0
+            self.assertLess(slide, L.knot_slack() - 0.002, v)
+            if v == "":
+                self.assertAlmostEqual(slide, 0.088, places=9)
 
     def test_tilt_fit_angle(self):
         """A straight 20 mm length passes the 11.4 mm passage within about 14 degrees of the hole's axis."""
@@ -253,7 +289,7 @@ class Crossing(unittest.TestCase):
         self.assertAlmostEqual(out, 0.045, places=9)
 
     def test_near_side_short(self):
-        line = through_line(320.0 - 13.0 - 39.0)  # 39 mm left on the near side
+        line = through_line(L.CORD_LEN / MM - 13.0 - 39.0)  # 39 mm left on the near side
         self.assertAlmostEqual(S.through_out(self.local(line)), 0.039, places=9)
 
     def test_partial_threading_has_no_out(self):
@@ -349,7 +385,7 @@ class Tiers(unittest.TestCase):
             self.assertEqual(res.score, want, out)
 
     def test_near_side_39(self):
-        st = {S.LOCK: lock(), S.CORD: cord(through_line(320.0 - 13.0 - 39.0))}
+        st = {S.LOCK: lock(), S.CORD: cord(through_line(L.CORD_LEN / MM - 13.0 - 39.0))}
         self.assertEqual(self.score(st), 0.5)
 
     def test_plunger_near_miss(self):
@@ -736,11 +772,16 @@ class Files(unittest.TestCase):
             self.assertLessEqual(len(d[k]), n, k)
         self.assertEqual(d["category"], "Societal relatability")
         self.assertEqual(d["instruction"], T.INSTRUCTION)
-        self.assertRegex(d["scores"], r"^Dream-1 run: [0-9.]+; demo: 1\.0$")
+        self.assertTrue(d["scores"] == "" or d["scores"].startswith("TBD")
+                        or re.fullmatch(r"Dream-1 run: [^;]+; demo: 1\.0( \(\d+ steps\))?", d["scores"]), d["scores"])
         self.assertIn("900 steps", d["run_limit"])
 
     def test_words(self):
         texts = {n: (HERE / n).read_text() for n in ("task.json", "README.md")}
+        feedback = ('"Task is not immediately relatable. Should be modified to\nrepresent one of the specific '
+                    'contexts cited."')
+        self.assertIn(feedback, texts["README.md"])  # the review's words, quoted verbatim in the revision section
+        texts["README.md"] = texts["README.md"].replace(feedback, "")
         banned = [r"\bscaled?\b", r"\bmodel of\b", r"\bmodels?\b", r"\bmock", r"\banalog", r"\btrainer\b",
                   r"stand-in", r"stands for", r"\brepresents?\b", r"\bTBD\b(?! after the GPU runs)", r"<[a-z ]+>",
                   r"\bmeasured later\b", r"\bto be measured\b", r"\bbought\b", r"\bgate\b"]

@@ -2,9 +2,12 @@
 station frame: x forward from the line through the two arm bases, y to the left, z up; the station's table top is at
 z 0.7475 and every height below is above it.
 
-The scene: a loose spring cord lock (a Ravenox Extra Large cord lock: 41 x 20 x 13 mm with its button out, a
-0.65 x 0.45 in. hole, black Delrin, stainless spring) lying on one 34 x 13 mm long side, and 320 mm of loose 5/16 in.
-shock cord lying straight along y in front of it.
+The scene (revision of 2026-11-15): a duffel bag's bungee cord whose cord lock has come off its free end. The bag (a
+Bungee Top Duffel, 600 x 279 x 241 mm, filled) stands on the table to the robot's right, fixed; its bungee, 5/16 in.
+shock cord, runs through the lash loop at the foot of the bag's end panel and lies straight along y on the table; its
+far end is knotted behind the loop, its free end points at the lock. The lock (a Ravenox Extra Large cord lock: 41 x
+20 x 13 mm with its button out, a 0.65 x 0.45 in. hole, black Delrin, stainless spring) lies loose on one 34 x 13 mm
+long side in front of the free end.
 
 The lock's frame (the assembly's base frame): origin on the table under the body's centre; X along the lock's length
 toward the button, Y along the hole's axis (the cord's direction through it), Z up across the lock's 20 mm width. It
@@ -15,8 +18,9 @@ pressed in) fills the open end; its last 7 mm stands out of the body as the butt
 the overlap of the face hole (X -7.7 to 3.7, Z 1.75 to 18.25) and the plunger's own hole (X -0.7 - q to 10.7 - q,
 Z 3.5 to 16.5): 4.4 mm + q wide along X and 13 mm along Z.
 
-The cord's ends: end 0 (the cablekit cable's start) lies at y -0.060 pointing to +y, toward the lock; end 1 at y
--0.380. Either end may be threaded.
+The cord's ends: end 0 (the cablekit cable's start, the free end) lies at y 0.007 pointing to +y, toward the lock;
+end 1 (y -0.613) carries the knot, a rigid plug too wide for the loop, 180.5 mm past it. The cord slides through
+the loop; the knot stops it only after 180.5 mm. The scorer's rules let either end be threaded; only end 0 is free.
 """
 
 import math
@@ -88,9 +92,9 @@ def passage_width(q: float) -> float:
 # -- the shock cord (loose cablekit cable) ----------------------------------------------------------------------------
 CORD_D = 0.0079  # 5/16 in.
 CORD_R = CORD_D / 2
-CORD_LEN = 0.320
-CORD_SEGMENT = 0.020  # 16 capsules
-CORD_MASS = 0.0147  # 46 g/m
+CORD_LEN = 0.620  # free end to the knot
+CORD_SEGMENT = 0.020  # 31 capsules
+CORD_MASS = 0.0285  # 46 g/m
 CORD_BEND = 0.05  # N m/rad per joint: EI 1e-3 N m2 over 20 mm
 CORD_BEND_DAMPING = 0.002
 CORD_SIDES = 16  # the collider's section: a 16-sided prism, flats at 3.95 mm, corners at 4.03 mm
@@ -98,9 +102,42 @@ CORD_ARMATURE = 5e-6
 CORD_MAX_BEND = 1.2
 CORD_FRICTION = 0.6
 CORD_X = 0.300
-CORD_END0_Y = -0.060  # end 0, pointing to +y
+CORD_END0_Y = 0.007  # end 0 (the free end), pointing to +y: 26.5 mm short of where the demo sets the lock's near face
 CORD_SPAWN_LIFT = 0.0005  # spawned 0.5 mm above the table: it settles onto a flat
 WHITE = (0.93, 0.93, 0.90)
+# The knot at end 1: an overhand knot in the cord, a rigid plug (along the cord, across, height), flush with the table
+KNOT_SIZE = (0.024, 0.026, CORD_D)
+KNOT_MASS = 0.003
+
+# -- the duffel bag (fixed): a Bungee Top Duffel, 23.625 x 9.5 x 11 in. (600 W x 241 H x 279 D mm), filled, standing
+# on its base with its length along x and its end panel facing -x, beside the cord's far run --------------------------
+BAG_SIZE = (0.600, 0.279, 0.241)  # x (its length), y (its depth), z (its height)
+BAG_X0 = 0.309  # the end panel's face; the cord's surface is 5 mm from it
+BAG_Y = (-0.668, -0.389)  # +y side 19 mm clear of the right arm at its ready pose; 18 mm past the table edge
+BAG_POS = (BAG_X0 + BAG_SIZE[0] / 2, (BAG_Y[0] + BAG_Y[1]) / 2)
+NAVY = (0.10, 0.14, 0.30)
+# The lash loop at the foot of the end panel: 1 in. webbing sewn top and bottom, standing 20 mm off the panel: a strip
+# 2 mm thick, 25 mm wide (y), 16 mm high, and its sewn top edge. The cord runs through it along y.
+LOOP_Y = -0.420  # loop centre, 18.5 mm in from the bag's +y side
+LOOP_W = 0.025  # webbing width
+LOOP_T = 0.002  # webbing thickness
+LOOP_IN_X = (0.289, BAG_X0)  # inside: 20 mm across, the 7.9 mm cord at x 0.296 to 0.304
+LOOP_H = 0.016  # inside height
+BLACK_WEB = (0.06, 0.06, 0.07)
+LOOP_SHAPES = (  # (name, centre (world x, y, height above the table), size)
+    ("loop_strip", (LOOP_IN_X[0] - LOOP_T / 2, LOOP_Y, LOOP_H / 2), (LOOP_T, LOOP_W, LOOP_H)),
+    ("loop_top", ((LOOP_IN_X[0] - LOOP_T + BAG_X0) / 2, LOOP_Y, LOOP_H + LOOP_T / 2),
+     (BAG_X0 - LOOP_IN_X[0] + LOOP_T, LOOP_W, LOOP_T)),
+)
+
+
+def knot_slack() -> float:
+    """How far the cord can slide toward the lock before the knot meets the loop (m): from the knot's near face (the
+    cord's end 1) to the loop's far edge."""
+    end1_y = CORD_END0_Y - CORD_LEN
+    return (LOOP_Y - LOOP_W / 2) - end1_y
+
+
 RING_MM = (5.0, 23.0, 53.0)  # pen rings from each end, for reading a real trial: 5 mm; 13 + 10 mm; 13 + 40 mm
 
 # Cord pinched in the lock: the spring brings the plunger back until the passage is the cord's width

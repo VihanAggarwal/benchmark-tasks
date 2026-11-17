@@ -1,18 +1,21 @@
-"""On the station table, real size: a loose spring cord lock (a Ravenox Extra Large cord lock: 41 x 20 x 13 mm with
-its button out, 8.8 g, black Delrin with a stainless spring) lying on one long side, button toward +x, hole's axis
-along y, at x 0.302, y 0.130; and 320 mm of loose white 5/16 in. (7.9 mm) shock cord lying straight along y at x 0.300,
-one end at y -0.060 pointing at the lock.
+"""On the station table, real size: a duffel bag's bungee cord whose cord lock has come off its free end. The bag (a
+Bungee Top Duffel, 600 x 279 x 241 mm, filled; a fixed box) stands to the robot's right; its bungee, white 5/16 in.
+(7.9 mm) shock cord, runs through the lash loop at the foot of the bag's end panel (y -0.420) and lies straight along
+y at x 0.300, its free end at y 0.007 pointing at the lock, its far end knotted 180 mm behind the loop. The lock (a
+Ravenox Extra Large cord lock: 41 x 20 x 13 mm with its button out, 8.8 g, black Delrin with a stainless spring) lies
+loose on one long side, button toward +x, hole's axis along y, at x 0.302, y 0.130.
 
 The lock's passage is the overlap of its body's hole and its plunger's hole: 4.4 mm wide with the button out, 4.4 mm
 plus the travel when pressed, 11.4 x 13 mm with the button flush (7 mm, 10.5 N). The 7.9 mm cord first fits with the
-button 3.5 mm in. Goal: press the button, push one cord end through until at least 40 mm stands out of the far side
-with at least 40 mm left on the near side, and leave the lock on the table gripping the cord by its spring alone,
-both grippers clear. See scoring.py for the rules and the tiers.
+button 3.5 mm in. Goal: put the lock back on the bungee: press the button, push the free end through until at least
+40 mm stands out of the far side, and leave the lock on the table gripping the cord by its spring alone, both grippers
+clear. See scoring.py for the rules and the tiers.
 
 The lock is a mechkit assembly (mechkit.py: a body and one sprung slider), the cord a cablekit cable (cablekit.py,
-from the program repository's accepted cable tasks: 16 capsules on bending joints), the arms are read through
+from the program repository's accepted cable tasks: 31 capsules on bending joints, the knot a rigid end plug), the bag
+and its loop are fixed boxes, the arms are read through
 rigstate.py, and the scripted demo's tilted grips come from tiltgrip.py. None changes what the embodiment does. There
-is no rule, weld or bond: the squeeze, the passage and the pinch are contacts and one sprung joint.
+is no rule, weld or bond: the squeeze, the passage, the pinch and the loop are contacts and one sprung joint.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=task.py --scorer task_score -E object_jitter=0 ...
 Demo:    inspect-robots run --embodiment yam_arena --policy yam_scripted -E task=task.py -E object_jitter=0 ...
@@ -44,6 +47,7 @@ import tiltgrip  # noqa: E402
 from offline_cordlock import OfflineRig  # noqa: E402
 from scoring import CORD, LOCK, PLUNGER, Tracker  # noqa: E402
 from yam_arena.demo import Waypoint  # noqa: E402
+from yam_arena.task_file import Box  # noqa: E402
 
 rigstate.install()  # reads both arms before every control step (False offline: the checker feeds it instead)
 
@@ -53,11 +57,10 @@ SCORE_OVER = "end"
 # gripper holds or touches a part.
 SUCCESS_HOLD_S = 1.0
 
-INSTRUCTION = ("Press in the button of the black cord lock and keep it pressed in, with no more "
-               "than 2 mm of it standing out, from before the white shock cord's end goes in until "
-               "that end is through the lock's hole. Push the end through until at least 4 cm of "
-               "cord sticks out of the far side, with at least 4 cm left on the near side. Finish "
-               "with the lock resting on the table, gripping the cord by its spring alone, and both "
+INSTRUCTION = ("The black cord lock has come off the end of the duffel bag's white bungee cord. Put it back on: hold "
+               "its button in, with no more than 2 mm of it standing out, from before the cord's end goes in until "
+               "the end is through, and thread the end through the lock until at least 4 cm sticks out of the far "
+               "side. Then let go: the lock resting on the table, gripping the cord by its spring alone, both "
                "grippers clear of the lock and the cord.")
 
 
@@ -73,7 +76,11 @@ LOCK_SPEC = mk.assembly(LOCK, origin=(L.LOCK_ORIGIN[0], L.LOCK_ORIGIN[1], L.TOP)
                         shapes=_shapes(L.BODY_SHAPES, L.BLACK), joints=[PLUNGER_LINK], color=L.BLACK,
                         friction=L.LOCK_FRICTION, tight_fit=True)
 
-# -- the shock cord (loose): end 0 at y -0.060 pointing to +y, end 1 at y -0.380 -----------------------------------------
+# -- the duffel bag and its lash loop (fixed) -------------------------------------------------------------------------
+BAG = Box("duffel", pos=(L.BAG_POS[0], L.BAG_POS[1], L.TOP + L.BAG_SIZE[2] / 2), size=L.BAG_SIZE, color=L.NAVY)
+LOOP = [Box(n, pos=(c[0], c[1], L.TOP + c[2]), size=sz, color=L.BLACK_WEB) for n, c, sz in L.LOOP_SHAPES]
+
+# -- the bungee (shock cord): end 0 free at y 0.007 pointing to +y, through the loop, end 1 knotted at y -0.613 ---
 @dataclasses.dataclass(frozen=True)
 class Cord(cablekit.Cable):
     """cablekit's Cable, unchanged in the simulator (cablekit builds any Cable). Only tools/offline/check_task.py calls
@@ -93,9 +100,10 @@ CORD_SPEC = _cord(cablekit.cable(
     CORD, start=(L.CORD_X, L.CORD_END0_Y, L.TOP + L.CORD_R + L.CORD_SPAWN_LIFT), yaw=-math.pi / 2, length=L.CORD_LEN,
     radius=L.CORD_R, segment=L.CORD_SEGMENT, color=L.WHITE, cable_mass=L.CORD_MASS, bend_stiffness=L.CORD_BEND,
     bend_damping=L.CORD_BEND_DAMPING, collision_sides=L.CORD_SIDES, armature=L.CORD_ARMATURE,
-    max_bend=L.CORD_MAX_BEND, friction=L.CORD_FRICTION, joint_kind="d6"))
+    max_bend=L.CORD_MAX_BEND, friction=L.CORD_FRICTION, joint_kind="d6",
+    end_plug=cablekit.Plug(size=L.KNOT_SIZE, mass=L.KNOT_MASS, color=L.WHITE)))
 
-OBJECTS = [LOCK_SPEC, CORD_SPEC]
+OBJECTS = [LOCK_SPEC, CORD_SPEC, BAG, *LOOP]
 
 # -- the scorer and its hooks ------------------------------------------------------------------------------------------
 _TRACKER = Tracker()
@@ -197,9 +205,10 @@ def score(objects) -> float:
 # centre, to a 26 mm command: the pads stop on the body's 34 mm length with the button flush (20 N a finger against
 # the spring's 10.5 N at the stop), the lock centred between them. It carries the lock 30 mm up to (0.302, 0.040) and
 # sets it down there, still squeezed: hole centre at x 0.300, near face at y 0.0335. The right grips the cord 81 mm
-# from end 0 (its centre 12 mm below the TCP), raises it to the hole's height (cord at 10.45 mm, the hole's centre at
-# 10 mm), brings the end 26.5 mm short of the near face and pushes once along +y, 88 mm at about 15 mm/s: the end comes
-# 48.5 mm out of the far face and about 258 mm stays on the near side. The right pad's front corner stops 6 mm short
+# from its free end (its centre 12 mm below the TCP), raises it to the hole's height (cord at 10.45 mm, the hole's
+# centre at 10 mm; the end lies 26.5 mm short of the near face, so it is not carried along y) and pushes once along +y,
+# 88 mm at about 15 mm/s: the end comes 48.5 mm out of the far face; the cord slides 88 mm through the bag's loop (the
+# knot is 180 mm behind it). The right pad's front corner stops 6 mm short
 # of the near face. The left then opens: the plunger follows its pad out until the cord stops it at 3.5 mm in (the
 # pinch), and the left rises and moves away; then the right lets go of the cord, rises and moves away.
 YAW = {"left": -math.pi / 2, "right": math.pi / 2}  # pads closing along world x
@@ -279,7 +288,7 @@ def lock_let_go(arm: str, at, away) -> list[Waypoint]:
 
 
 def cord_pick(arm: str, back: float = GRIP_BACK) -> list[Waypoint]:
-    """Down either side of the lying cord, 81 mm from its end, and grip it (7.5 s)."""
+    """Down either side of the lying cord, 81 mm from its free end, and grip it (7.5 s)."""
     y = L.CORD_END0_Y - back
     return [
         _w(arm, 2.5, (L.CORD_X, y, HOVER_Z), CORD_OPEN, "over the cord, fingers 30 mm apart", False),
@@ -292,11 +301,12 @@ def cord_pick(arm: str, back: float = GRIP_BACK) -> list[Waypoint]:
 
 
 def cord_push(arm: str, x: float, start_y: float, end_y: float, back: float = GRIP_BACK) -> list[Waypoint]:
-    """Raise the cord to the hole's height, bring its end in front of the near face, wait, push once (11.5 s)."""
+    """Raise the cord to the hole's height, bring (or hold) its end in front of the near face, wait, push once
+    (11.5 s)."""
     y = L.CORD_END0_Y - back
     return [
         _w(arm, 1.0, (L.CORD_X, y, PUSH_Z), CORD_GRIP, "raise the cord to the hole's height"),
-        _w(arm, 3.0, (x, start_y, PUSH_Z), CORD_GRIP, "bring its end 26.5 mm short of the near face"),
+        _w(arm, 3.0, (x, start_y, PUSH_Z), CORD_GRIP, "hold its end 26.5 mm short of the near face"),
         _w(arm, 1.0, (x, start_y, PUSH_Z), CORD_GRIP, "settle: the lock is down and squeezed"),
         _w(arm, PUSH_S, (x, end_y, PUSH_Z), CORD_GRIP, "push once along the hole's axis, about 15 mm/s"),
         _w(arm, 0.5, (x, end_y, PUSH_Z), CORD_GRIP, "settle at the end of the push"),
