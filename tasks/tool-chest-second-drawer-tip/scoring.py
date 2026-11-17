@@ -7,6 +7,8 @@ links "left" and "right", the two drawers) and of the screwdriver (origin on the
     OPENING     how far a drawer is out of the chest (m): the left joint + 0.190 (it is drawn open), the right joint
     TIP         any foot's bottom 10 mm or more above the table (a 10 mm block slides under it). Latched for the trial
     DRAGGED     the chest's origin more than 30 mm from where it started, seen from above. Latched
+    BOTH OPEN   both drawers more than 10 mm out on the same step (the maker's rule: one drawer at a time), even if
+                the chest stays up. Latched for the trial
     OFF TABLE   the chest or the screwdriver outside the table's outline or more than 10 mm below its top. Latched
     IN DRAWER   all 8 corners of the box round the screwdriver inside the right drawer's box, taken in the drawer's own
                 frame: between its front panel and back wall, between its side walls, above its floor and below the
@@ -15,7 +17,7 @@ links "left" and "right", the two drawers) and of the screwdriver (origin on the
                 screwdriver (rigstate; unreadable arms: not clear)
     STILL       over the last 1 s the screwdriver moved under 2 mm and turned under 2 degrees
 
-    0      TIP, DRAGGED or OFF TABLE at any time; or not CLEAR at the end; or nothing below
+    0      TIP, DRAGGED, BOTH OPEN or OFF TABLE at any time; or not CLEAR at the end; or nothing below
     0.25   the left drawer 95 mm or less open
     0.5    the left drawer 10 mm or less open (shut)
     0.75   the left drawer shut and the right drawer 150 mm or more open, or the screwdriver in it but not still
@@ -174,7 +176,7 @@ class Tracker:
         self.clear: deque = deque(maxlen=self.window)
         self.prev: Reading | None = None
         self.start_xy: np.ndarray | None = None
-        self.latched: dict = {"tip": None, "dragged": None, "off_table": None}
+        self.latched: dict = {"tip": None, "dragged": None, "off_table": None, "both_open": None}
         self.max_lift = 0.0
         self.max_open = {n: 0.0 for n in L.DRAWERS}
         self.last = Result(0.0, False, {})
@@ -219,6 +221,9 @@ class Tracker:
             self.latched["tip"] = self.steps
         if self.latched["dragged"] is None and float(np.linalg.norm(r.chest_o[:2] - self.start_xy)) > L.DRAG + L.EPS:
             self.latched["dragged"] = self.steps
+        if (self.latched["both_open"] is None and r.opening["left"] > L.SHUT + L.EPS
+                and r.opening["right"] > L.SHUT + L.EPS):
+            self.latched["both_open"] = self.steps
         if self.latched["off_table"] is None and off_table(r):
             self.latched["off_table"] = self.steps
         try:

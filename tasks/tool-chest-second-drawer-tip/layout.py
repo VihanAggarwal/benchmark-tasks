@@ -3,10 +3,12 @@
 World frame: x forward from the line through the two arm bases, y to the left, z up. The arm bases stand at x 0,
 y +-0.305; the station's table top is at z 0.7475. Heights below are above the table top unless named *_W.
 
-A two-drawer tool chest (a riser or middle chest: one row of two drawers side by side) stands loose on rubber feet,
-its front face 36.0 cm in front of the arm bases. Each drawer runs on full-extension slides (190 mm of travel to a hard
-stop) and is loaded to 5.0 kg. The LEFT drawer (robot's left) stands fully open at the start; the RIGHT one is shut and
-has an empty bay in its foam organiser. A screwdriver lies on the table to the right of the chest.
+A tall two-drawer tool chest (a closed lower compartment 90 mm high under one row of two drawers side by side) stands
+loose on rubber feet, its front face 36.0 cm in front of the arm bases. Each drawer runs on full-extension slides
+(190 mm of travel to a hard stop) and is loaded to 5.0 kg. The drawer row sits LIFT = 90 mm up, so the open drawers'
+lowest front edges are 106 mm over the table: a tipped chest pitches 28 degrees before they meet it. The LEFT
+drawer (robot's left) stands fully open at the start; the RIGHT one is shut and has an empty bay in its foam
+organiser. A screwdriver lies on the table to the right of the chest.
 
 Chest frame (``CHEST`` in task.py): origin on the table at the middle of the chest's front face, x back into the chest,
 y left, z up. The drawers are drawn in that frame SHUT, except the left drawer, which is drawn fully open (its joint
@@ -32,14 +34,15 @@ G = 9.81
 
 # -- the chest ---------------------------------------------------------------------------------------------------------
 CHEST_X = 0.360  # the front face, world x
-CHEST_D, CHEST_W, CHEST_H = 0.220, 0.600, 0.100  # depth (x), width (y), height including the feet (z)
+LIFT = 0.090  # the closed lower compartment under the drawer row (a tall chest: the drawers sit high up)
+CHEST_D, CHEST_W, CHEST_H = 0.220, 0.600, 0.100 + LIFT  # depth (x), width (y), height including the feet (z)
 WALL = 0.005  # collider thickness of the shell's sheets
 FOOT = (0.020, 0.020, 0.008)  # rubber feet
 FOOT_IN = 0.005  # each foot's outer edges 5 mm in from the shell's front (or back) face and its side
 TIP_X = FOOT_IN  # the tip line in the chest frame: the front feet's front edges
 BOTTOM_Z = (FOOT[2], FOOT[2] + WALL)  # the bottom sheet, 8 to 13 mm
-TOP_Z = (CHEST_H - WALL, CHEST_H)  # the top sheet, 95 to 100 mm
-SHELL_MASS = 3.0  # est: 0.8 mm sheet steel about 2.4 kg, plus feet and the slides' outer members
+TOP_Z = (CHEST_H - WALL, CHEST_H)  # the top sheet, 185 to 190 mm
+SHELL_MASS = 4.5  # est: sheet steel carcass 3.3 kg, the slides' outer members and 1.2 kg of ballast (lower compartment)
 
 # -- the drawers -------------------------------------------------------------------------------------------------------
 DRAWERS = ("left", "right")
@@ -47,14 +50,14 @@ DRAWER_Y = {"left": 0.150, "right": -0.150}  # centre lines
 TRAVEL = 0.190  # full extension, to a hard stop
 DRAWER_MASS = 5.0  # each, loaded: box about 1 kg, steel plate ballast and hand tools in a foam organiser
 FRONT_T, FRONT_W = 0.015, 0.290
-FRONT_Z = (0.016, 0.091)  # front panel, 75 mm tall
+FRONT_Z = (0.016 + LIFT, 0.091 + LIFT)  # front panel, 75 mm tall
 BOX_X = (FRONT_T, FRONT_T + 0.200)  # the box behind the front: 200 mm deep (x 15 to 215 mm, shut)
 BOX_W = 0.280
 SHEET = 0.003  # drawer sheet collider thickness
-FLOOR_Z = (0.018, 0.021)
-SIDE_TOP = 0.073  # side and back walls 55 mm above the floor's underside
-BALLAST_Z = (0.021, 0.027)  # 6 mm steel plate over the whole floor
-FOAM_Z = (0.027, 0.052)  # 25 mm foam organiser
+FLOOR_Z = (0.018 + LIFT, 0.021 + LIFT)
+SIDE_TOP = 0.073 + LIFT  # side and back walls 55 mm above the floor's underside
+BALLAST_Z = (0.021 + LIFT, 0.027 + LIFT)  # 6 mm steel plate over the whole floor
+FOAM_Z = (0.027 + LIFT, 0.052 + LIFT)  # 25 mm foam organiser
 INNER_X = (BOX_X[0], BOX_X[1] - SHEET)  # 15 to 212 mm
 INNER_HALF_Y = BOX_W / 2 - SHEET  # 137 mm
 # The right drawer's empty bay: 240 (y) by 70 (x) mm, down to the ballast plate. Its centre sits 77.5 mm behind the
@@ -62,7 +65,7 @@ INNER_HALF_Y = BOX_W / 2 - SHEET  # 137 mm
 BAY_X = (0.0575, 0.1275)
 BAY_HALF_Y = 0.120
 # Pull: a steel bar 120 x 12 x 12 mm on two 8 mm stems, 35 mm clear of the front, its centre 53 mm up.
-BAR_LEN, BAR_SEC, BAR_STANDOFF, BAR_Z = 0.120, 0.012, 0.035, 0.053
+BAR_LEN, BAR_SEC, BAR_STANDOFF, BAR_Z = 0.120, 0.012, 0.035, 0.053 + LIFT
 BAR_FRONT = -(BAR_STANDOFF + BAR_SEC)  # chest frame x of the bar's front face, drawer shut: -47 mm
 BAR_CENTRE = -(BAR_STANDOFF + BAR_SEC / 2)  # -41 mm
 STEM, STEM_DY = 0.008, 0.050
@@ -123,6 +126,8 @@ def shell_shapes():
             y_out = s * (hw - FOOT_IN)
             out.append(_b(x0, x0 + fx, min(y_out, y_out - s * fy), max(y_out, y_out - s * fy), 0.0, fz, RUBBER))
     out.append(_b(0.0, d, -hw, hw, *BOTTOM_Z, SHELL_RED))
+    out.append(_b(0.0, d, -hw, hw, BOTTOM_Z[0] + LIFT, BOTTOM_Z[1] + LIFT, SHELL_RED))  # deck under the drawer row
+    out.append(_b(0.0, WALL, -hw + WALL, hw - WALL, BOTTOM_Z[1], BOTTOM_Z[0] + LIFT, SHELL_RED))  # closed front
     out.append(_b(0.0, d, -hw, hw, *TOP_Z, SHELL_RED))
     for s in (1, -1):
         out.append(_b(0.0, d, min(s * hw, s * (hw - WALL)), max(s * hw, s * (hw - WALL)), BOTTOM_Z[1], TOP_Z[0],
@@ -192,7 +197,7 @@ def com_x(shapes) -> float:
     return float((vols * cx).sum() / vols.sum())
 
 
-SHELL_COM_X = com_x(shell_shapes())  # about 113 mm behind the front face
+SHELL_COM_X = com_x(shell_shapes())  # about 118 mm behind the front face (113 mm behind the tip line)
 DRAWER_COM_X = {n: com_x(drawer_shapes(n)) for n in DRAWERS}  # shut, chest frame
 
 
