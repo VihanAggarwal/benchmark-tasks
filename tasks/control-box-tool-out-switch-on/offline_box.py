@@ -1,6 +1,6 @@
 """Kinematics of the screwdriver, the cover, the catches and the rocker for use ONLY where there is no simulator:
 tools/offline/check_task.py and the tests. The simulator never takes a result from here: there every part is a PhysX
-body or joint moved by the fingers' contacts, and catchrule.py runs from the measured pad tips.
+body or joint moved by the fingers' contacts (the catch levers too), and catchrule.py reads the levers' joints.
 
 What this file assumes is what the design claims, so the offline prediction is the design's, not a measurement. It
 moves the parts from the arms' COMMANDED pad-tip points and openings (rigstate's offline feed). Every gripper points
@@ -19,7 +19,9 @@ along world x when it is closed for the rocker; the left one closed, its fingers
   12 mm under and 5 mm over its axis) and then close below its 28 mm holds the tool; the tool follows the pad tips;
   above 32 mm it is let go and drops straight down onto what is under its centre of mass (tray floor, terminal row,
   mounting plate, the supply's top or the table);
-- the catch rule (catchrule.Catch) runs on the commanded pad tips.
+- the same wedge's bottom over a catch lever's tab presses that lever down to clear it (each lever on its own: it
+  needs the wedge over its own tab); past its centre it snaps closed while the cover is shut, before it, or with the
+  cover open 5 degrees or more, it springs back open; catchrule.Catch reads the two levers.
 """
 
 from __future__ import annotations
@@ -54,6 +56,7 @@ class OfflineBox:
     def reset(self) -> None:
         self.open_deg = L.COVER_OPEN_DEG
         self.rocker_deg = 0.0
+        self.lever_deg = [0.0] * len(L.LEV_NAMES)
         self.tool = np.array([L.TOOL_ORIGIN[0], L.TOOL_ORIGIN[1], L.TOP + L.TOOL_ORIGIN[2]])
         self.held = None  # (side, tool origin minus pad tips)
         self.around = {s: False for s in rigstate.ARMS}
@@ -140,7 +143,8 @@ class OfflineBox:
                 motions.append(np.zeros(3) if prev is None else tips - prev)
         self._cover(wedges, motions)
         self._rocker(wedges)
-        self.catch.update(self.open_deg, [t for t, _g in grips.values()])
+        self._levers(wedges)
+        self.catch.update(self.open_deg, self.lever_deg)
 
     def _cover(self, wedges, motions) -> None:
         if wedges and self._cover_hit(self.open_deg, wedges):
@@ -175,9 +179,33 @@ class OfflineBox:
         free = L.ROCKER_TRAVEL_DEG if self.rocker_deg >= L.ROCKER_CENTRE_DEG else 0.0
         self.rocker_deg = max(q_min, free)  # past the centre it snaps ON on the next step
 
+    def _levers(self, wedges) -> None:
+        for i, xc in enumerate(L.CATCH_XS):
+            q_min = 0.0
+            for tips, axis, gap in wedges:
+                half = (FACE + gap / 2, HALF_W) if axis == 0 else (HALF_W, FACE + gap / 2)
+                if tips[0] + half[0] < xc - L.LEV_W / 2 or tips[0] - half[0] > xc + L.LEV_W / 2:
+                    continue
+                u0 = max(L.LEV_PIVOT_Y - (tips[1] + half[1]), 0.0)  # outward from the hinge
+                u1 = min(L.LEV_PIVOT_Y - (tips[1] - half[1]), L.LEV_LEN)
+                if u1 <= u0:
+                    continue
+                z = float(tips[2]) - L.TOP
+                q = self.lever_deg[i]
+                while q < L.LEV_TRAVEL_DEG and max(L.lever_top_z(u, q) for u in (u0, u1)) > z + 1e-9:
+                    q = min(L.LEV_TRAVEL_DEG, q + STEP_DEG)
+                q_min = max(q_min, q)
+            hooked = self.open_deg < L.UNLATCH_DEG - L.EPS
+            free = L.LEV_TRAVEL_DEG if (self.lever_deg[i] >= L.LEV_CENTRE_DEG and hooked) else 0.0
+            self.lever_deg[i] = max(q_min, free)
+            if not hooked and q_min < L.LEV_CENTRE_DEG:
+                self.lever_deg[i] = q_min
+
     # -- outputs ----------------------------------------------------------------------------------------------------
     def box_joints(self) -> dict:
-        return {"cover": math.radians(L.COVER_OPEN_DEG - self.open_deg)}
+        out = {"cover": math.radians(L.COVER_OPEN_DEG - self.open_deg)}
+        out.update({n: math.radians(d) for n, d in zip(L.LEV_NAMES, self.lever_deg)})
+        return out
 
     def supply_joints(self) -> dict:
         return {"rocker": math.radians(self.rocker_deg)}

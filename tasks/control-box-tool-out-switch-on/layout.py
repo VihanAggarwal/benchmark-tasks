@@ -7,10 +7,10 @@ Scene (sources in README.md; "est" marks a figure not read at a source):
 - A grey polycarbonate wall-mount control enclosure lying on its back on the bench (bench wiring and testing),
   fixed: outer 250 (x) x 200 (y) x 120 (z) mm with its cover, walls and floor 3 mm (est, a common catalogue size
   class). Inside: a mounting plate, a 35 mm top-hat DIN rail along x and 16 grey 2.5 mm2 feed-through terminal
-  blocks (5.2 mm each) clipped on it, modelled as one block (est sizes).
+  blocks (5.2 mm each) clipped on it, drawn as 16 blocks, each with its landed wire (est sizes).
 - Its clear polycarbonate cover (4 mm, 300 g, est) hinged along the box's LEFT long edge, resting open 97 degrees on
-  its stop: 7 degrees past vertical, leaning away from the box. Two snap catches on its right edge (the one declared
-  rule, catchrule.py).
+  its stop: 7 degrees past vertical, leaning away from the box. Two snap catches on its right edge: spring toggle
+  levers on the box's right wall, each pressed on its own (catchrule.py).
 - A terminal screwdriver (insulated, 3.5 x 100 mm class: 210 mm overall, handle 28 mm across and 110 mm long, 60 g,
   est) left lying along x on top of the terminal row: the handle's top is 25 mm under the shut cover's inner face, so
   a cover shut over it closes and latches.
@@ -57,6 +57,34 @@ ROW_X = (ROW_CX - N_BLOCKS * BLOCK_W / 2, ROW_CX + N_BLOCKS * BLOCK_W / 2)  # 0.
 RAIL_Y = -0.025  # the rail runs along x 25 mm right of the box's middle (est layout)
 ROW_Y = (RAIL_Y - BLOCK_L / 2, RAIL_Y + BLOCK_L / 2)
 
+BLOCK_Z = (RAIL_TOP, ROW_TOP)
+WIRE_D = 0.003  # a 1.5 mm2 stranded wire with its insulation, about 3 mm
+WIRE_Z = 0.035  # the wires' axis over the table: in line with the blocks' fronts, well under the screwdriver
+WIRE_STUB_Y = (ROW_Y[1], ROW_Y[1] + 0.0125)  # from each block's front face (+y) out to the bundle
+BUNDLE_Y = (ROW_Y[1] + 0.0125, ROW_Y[1] + 0.0245)  # the bundle's bar along the row's front edge
+BUNDLE_Z = (WIRE_Z - 0.006, WIRE_Z + 0.006)
+CONDUIT_ENTRY_X = 0.220  # the conduit's line (x) where it enters the right wall
+
+
+def block_x(i: int) -> tuple[float, float]:
+    return ROW_X[0] + i * BLOCK_W, ROW_X[0] + (i + 1) * BLOCK_W
+
+
+def wire_boxes() -> list:
+    """The finished dummy wiring as fixed bars: (x range, y range, z range) in world metres (z over the table): one
+    stub from each of the 16 blocks' front faces to the bundle bar, the bundle along the row's front edge, and a
+    bar across the mounting plate to the conduit's entry on the right wall."""
+    out = []
+    for i in range(N_BLOCKS):
+        a, b = block_x(i)
+        c = (a + b) / 2
+        out.append(((c - WIRE_D / 2, c + WIRE_D / 2), WIRE_STUB_Y, (WIRE_Z - WIRE_D / 2, WIRE_Z + WIRE_D / 2)))
+    x_end = CONDUIT_ENTRY_X - 0.006
+    out.append(((x_end, block_x(N_BLOCKS - 1)[0] + BLOCK_W / 2 + WIRE_D / 2), BUNDLE_Y, BUNDLE_Z))
+    out.append(((x_end, x_end + 0.012), (BOX_Y[0] + WALL, BUNDLE_Y[1]), BUNDLE_Z))
+    return out
+
+
 # the cover: hinged along the left long edge (the hinge line is the cover's top outer edge, y +0.100, z 0.120)
 HINGE_Y, HINGE_Z = BOX_Y[1], BOX_H
 COVER_OPEN_DEG = 97.0  # resting on its stop (est; the spec's 95, tuned toward its stated 93 to 98 range)
@@ -64,8 +92,35 @@ COVER_MASS = 0.300  # est (a 250 x 200 x 4 mm polycarbonate plate is 240 g, plus
 COVER_DAMP = 0.08  # N m s / rad (est: the cover falls shut in about 1 s without slamming)
 CATCH_TAB = (0.030, 0.003, 0.010)  # x, y, z: a catch tab on the cover's right edge (visual; est)
 CATCH_XS = (0.170, 0.320)  # the two catches' centres along x
-KEEPER = (0.030, 0.004, 0.006)  # the keeper on the right wall's outside under each tab (visual; est)
-KEEPER_Z = (0.098, 0.104)
+
+# the two snap catches: spring toggle levers on the right wall's outside, each its own hinged part (est sizes). A lever
+# stands raised 10 deg (open); pressed down past its centre it snaps closed over the cover's tab. It closes only on a
+# shut cover. The spring gives LATCH_FORCE at the press point at the centre (the demo presses each lever on its own).
+LEV_PIVOT_Y = BOX_Y[0] - 0.006  # the hinge line (along x), 6 mm outside the wall
+LEV_PIVOT_Z = 0.095  # over the table
+LEV_LEN = 0.060  # the lever's tab, from the hinge outward (-y)
+LEV_W = 0.030  # along x
+LEV_T = 0.005
+LEV_TILT_DEG = 10.0  # either way from level
+LEV_TRAVEL_DEG = 2 * LEV_TILT_DEG  # joint 0 = open (tab raised), 20 deg = closed (tab down)
+LEV_CENTRE_DEG = LEV_TILT_DEG
+LEV_PRELOAD_DEG = 3.0
+LEV_ON_DEG = LEV_CENTRE_DEG + 2.0  # read closed 2 deg past the centre, open 2 deg before it
+LEV_OFF_DEG = LEV_CENTRE_DEG - 2.0
+LEV_PRESS_U = 0.040  # the press point from the hinge outward
+LATCH_FORCE = 5.0  # N at the press point at the centre (est: a light enclosure snap catch)
+LEV_K = LATCH_FORCE * LEV_PRESS_U / math.radians(LEV_TILT_DEG + LEV_PRELOAD_DEG)  # N m / rad
+LEV_MASS = 0.005
+LEV_DAMP = 0.0005
+LEV_BRACKET = (0.034, 0.006, 0.020)  # x, y, z: the bracket on the wall that carries each lever's hinge
+LEV_NAMES = ("catch_a", "catch_b")
+
+
+def lever_top_z(u: float, joint_deg: float) -> float:
+    """Height (over the table) of a lever's top surface at ``u`` (m outward from its hinge) at ``joint_deg``."""
+    a = math.radians(joint_deg - LEV_TILT_DEG)  # + tips the tab's outer end down
+    return LEV_PIVOT_Z + LEV_T / 2 * math.cos(a) - u * math.sin(a)
+
 
 # -- the screwdriver (loose) ----------------------------------------------------------------------------------------
 HANDLE_R = 0.014
@@ -134,14 +189,9 @@ TRAY_FLOOR = 0.003
 TRAY_IN_X = (TRAY_XY[0] - TRAY_OUT[0] / 2 + TRAY_WALL, TRAY_XY[0] + TRAY_OUT[0] / 2 - TRAY_WALL)
 TRAY_IN_Y = (TRAY_XY[1] - TRAY_OUT[1] / 2 + TRAY_WALL, TRAY_XY[1] + TRAY_OUT[1] / 2 - TRAY_WALL)
 
-# -- the catch rule ---------------------------------------------------------------------------------------------------
+# -- the catches (the levers' closing rule) ------------------------------------------------------------
 SHUT_DEG = 2.0  # the cover within 2 deg of shut
-CATCH_ZONE_Y = (BOX_Y[0], BOX_Y[0] + 0.060)  # a press within 6 cm of the catch edge
-CATCH_ZONE_X = (BOX_X[0] + 0.010, BOX_X[1] - 0.010)
-PRESS_ABOVE = 0.003  # the pad tips no more than 3 mm over the cover's top: resting on it
-PRESS_STEPS = 5  # for 0.25 s
-CATCH_FORCE = 5.0  # N (est, a light enclosure snap catch): what the demo's press is commanded past
-UNLATCH_DEG = 5.0  # the catches are undone once the cover is 5 deg open
+UNLATCH_DEG = 5.0  # the levers spring open once the cover is 5 deg open (and do not close on a cover that is)
 
 # -- scoring thresholds ---------------------------------------------------------------------------------------------
 OPEN_LIVE_DEG = 5.0  # the cover opened 5 deg or more while the supply is ON: latched 0
@@ -162,6 +212,9 @@ BOX_GREY = (0.62, 0.64, 0.66)
 PLATE_ORANGE = (0.85, 0.55, 0.20)
 RAIL_ZINC = (0.78, 0.79, 0.80)
 BLOCK_GREY = (0.55, 0.57, 0.58)
+BLOCK_LIGHT = (0.74, 0.75, 0.72)
+WIRE_BLACK = (0.05, 0.05, 0.06)
+LEVER_BLACK = (0.12, 0.12, 0.14)
 COVER_CLEAR = (0.80, 0.88, 0.93)
 CATCH_DARK = (0.25, 0.26, 0.28)
 HANDLE_RED = (0.85, 0.12, 0.10)

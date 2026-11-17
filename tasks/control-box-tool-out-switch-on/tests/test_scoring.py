@@ -53,7 +53,9 @@ START = (L.TOOL_ORIGIN[0], L.TOOL_ORIGIN[1], L.TOP + L.TOOL_ORIGIN[2])
 
 def states(open_deg=0.0, rocker_deg=20.0, tool=IN_TRAY, tool_quat=(0.0, 0.0, 0.0, 1.0), source="sim"):
     return {S.BOX: mk.state_from_poses(T.BOX_SPEC, (*L.BOX_ORIGIN, L.TOP, 0.0, 0.0, 0.0, 1.0), np.zeros(6),
-                                       joints={"cover": math.radians(L.COVER_OPEN_DEG - open_deg)}, source=source),
+                                       joints={"cover": math.radians(L.COVER_OPEN_DEG - open_deg),
+                                               **{n: math.radians(L.LEV_TRAVEL_DEG if open_deg < 5.0 else 0.0)
+                                                  for n in L.LEV_NAMES}}, source=source),
             S.SUPPLY: mk.state_from_poses(T.SUPPLY_SPEC, (*L.SUP_XY, L.TOP, 0.0, 0.0, 0.0, 1.0), np.zeros(6),
                                           joints={"rocker": math.radians(rocker_deg)}, source=source),
             S.TOOL: mk.state_from_poses(T.TOOL_SPEC, (*tool, *tool_quat), np.zeros(6), source=source)}
@@ -79,12 +81,21 @@ def switch_on(tr, before, after, arms=AWAY, latched=True, n_after=WIN + 2):
     return run(tr, after, arms, n_after, latched)
 
 
-def replay(variant="", idle=None, hold_s=3.0):
+def replay(variant="", idle=None, hold_s=3.0, skip=""):
     """The demo's commanded motion through the offline kinematics and the scorer, as the offline checker plays it:
     (final score, step at which success first held, the model, the tracker)."""
     plans = T.plans(variant)
     if idle:
         plans.pop(idle, None)
+    if skip:  # the press whose label contains ``skip`` and its hold stay over the lever instead of pressing it
+        for ws in plans.values():
+            flat = False
+            for i, w in enumerate(ws):
+                flat = flat or skip in w.label
+                if flat and not w.label.startswith("up off"):
+                    ws[i] = D.Waypoint(w.duration, ws[i - 1].pos, w.finger, w.label + " (skipped)", w.yaw)
+                elif flat:
+                    flat = False
     ap = {s: D.ArmPlan(w, BASES[s]) for s, w in plans.items()}
     total = max(p.duration for p in ap.values()) + hold_s
     model, tr = OB.OfflineBox(), S.Tracker()
@@ -145,6 +156,32 @@ class Geometry(unittest.TestCase):
         self.assertLess(L.ROW_X[0], L.HANDLE_X[0])
         self.assertGreater(L.SHAFT_X[0] - L.IN_X[0], 0.015)  # the blade's tip 17 mm from the end wall
         self.assertGreater(L.IN_X[1] - L.HANDLE_X[1], 0.015)
+
+    def test_terminals_and_wires_are_drawn_and_clear_of_the_tool(self):
+        """16 separate blocks, one landed wire each from its front face, a bundle bar and a bar to the conduit entry;
+        every bar at least 2 cm from the screwdriver where it lies, inside the box and under the shut cover."""
+        wires = L.wire_boxes()
+        self.assertEqual(len(wires), L.N_BLOCKS + 2)
+        for i, w in enumerate(wires[:L.N_BLOCKS]):
+            a, b = L.block_x(i)
+            self.assertTrue(a < sum(w[0]) / 2 < b)
+            self.assertAlmostEqual(w[1][0], L.ROW_Y[1])  # lands on the block's front (+y) face
+        self.assertAlmostEqual(L.block_x(0)[0], L.ROW_X[0])
+        self.assertAlmostEqual(L.block_x(L.N_BLOCKS - 1)[1], L.ROW_X[1])
+        pts, rad = L.tool_axis_points(np.array([L.TOOL_ORIGIN[0], L.TOOL_ORIGIN[1], L.TOOL_ORIGIN[2]]), np.eye(3))
+        for (x, y, z) in wires:
+            lo, hi = np.array([x[0], y[0], z[0]]), np.array([x[1], y[1], z[1]])
+            self.assertGreaterEqual(x[0], L.IN_X[0])
+            self.assertLessEqual(x[1], L.IN_X[1])
+            self.assertGreaterEqual(y[0], L.IN_Y[0])
+            self.assertLessEqual(y[1], L.IN_Y[1])
+            self.assertLess(z[1], L.ROW_TOP)
+            d = np.linalg.norm(np.maximum(np.maximum(lo - pts, pts - hi), 0.0), axis=1) - rad
+            self.assertGreaterEqual(float(d.min()), 0.02)
+        n_shapes = len(T.BOX_SHAPES)
+        self.assertGreaterEqual(n_shapes, 7 + L.N_BLOCKS + len(wires) + 2)
+        self.assertEqual(wires[-1][1][0], L.BOX_Y[0] + L.WALL)  # reaches the conduit's entry in the right wall
+        self.assertTrue(wires[-1][0][0] < L.CONDUIT_X < wires[-1][0][1])
 
     def test_hand_room_round_the_handle(self):
         y = L.TOOL_ORIGIN[1]
@@ -211,7 +248,7 @@ class Kit(unittest.TestCase):
 
     def test_objects(self):
         self.assertEqual([o.name for o in T.OBJECTS], [S.BOX, S.SUPPLY, S.TRAY, S.TOOL])
-        self.assertEqual([j.name for j in T.BOX_SPEC.joints], ["cover"])
+        self.assertEqual([j.name for j in T.BOX_SPEC.joints], ["cover", "catch_a", "catch_b"])
         self.assertEqual([j.name for j in T.SUPPLY_SPEC.joints], ["rocker"])
         for spec in (T.BOX_SPEC, T.SUPPLY_SPEC, T.TRAY_SPEC):
             self.assertIsNone(spec.mass)
@@ -222,42 +259,71 @@ class Kit(unittest.TestCase):
 
 # -- the rules --------------------------------------------------------------------------------------------------------
 class Rules(unittest.TestCase):
-    PRESS = np.array([0.22, -0.06, L.TOP + L.BOX_H + 0.001])
+    CLOSED = L.LEV_TRAVEL_DEG
+    CENTRE = L.LEV_CENTRE_DEG
 
-    def test_catch_needs_a_shut_cover_and_a_press_held(self):
+    def test_catch_needs_both_levers_and_a_shut_cover(self):
         c = R.Catch()
-        for _ in range(L.PRESS_STEPS - 1):
-            c.update(0.0, [self.PRESS])
+        c.update(0.0, [self.CLOSED, 0.0])
+        self.assertFalse(c.latched)  # one catch alone is not enough
+        c.update(0.0, [0.0, self.CLOSED])
         self.assertFalse(c.latched)
-        c.update(0.0, [self.PRESS])
+        c.update(0.0, [self.CLOSED, self.CLOSED])
         self.assertTrue(c.latched)
         c2 = R.Catch()
-        for _ in range(10):
-            c2.update(L.SHUT_DEG + 0.5, [self.PRESS])
-        self.assertFalse(c2.latched)
+        c2.update(L.SHUT_DEG + 0.5, [self.CLOSED, self.CLOSED])
+        self.assertFalse(c2.latched)  # levers closed but the cover not shut
+        c3 = R.Catch()
+        c3.update(0.0, [self.CLOSED, None])
+        self.assertFalse(c3.latched)
+        c3.update(0.0, None)
+        self.assertFalse(c3.latched)
+        self.assertEqual(c3.pressed, 0)
 
-    def test_catch_zone(self):
-        self.assertTrue(R.in_catch_zone(self.PRESS))
-        self.assertFalse(R.in_catch_zone(self.PRESS + np.array([0.0, 0.061, 0.0])))  # over 6 cm from the edge
-        self.assertFalse(R.in_catch_zone(self.PRESS + np.array([0.0, 0.0, 0.0031])))  # hovering, not resting
-        self.assertFalse(R.in_catch_zone(self.PRESS + np.array([0.20, 0.0, 0.0])))  # off the cover
-
-    def test_a_broken_press_restarts(self):
+    def test_lever_hysteresis_and_undone_when_opened(self):
         c = R.Catch()
-        for k in range(12):
-            c.update(0.0, [self.PRESS] if k % 4 else [self.PRESS + np.array([0, 0, 0.02])])
-        self.assertFalse(c.latched)
-        c.update(0.0, None)
-        self.assertEqual(c.pressed, 0)
-
-    def test_undone_when_opened(self):
-        c = R.Catch()
-        for _ in range(6):
-            c.update(0.0, [self.PRESS])
-        c.update(4.0, None)
+        c.update(0.0, [L.LEV_ON_DEG, L.LEV_ON_DEG])
         self.assertTrue(c.latched)
-        c.update(5.0, None)
+        c.update(0.0, [L.LEV_ON_DEG - 1.0, self.CLOSED])  # between the thresholds: keeps its reading
+        self.assertTrue(c.latched)
+        c.update(0.0, [L.LEV_OFF_DEG, self.CLOSED])
         self.assertFalse(c.latched)
+        c.update(0.0, [self.CLOSED, self.CLOSED])
+        c.update(L.UNLATCH_DEG, [self.CLOSED, self.CLOSED])
+        self.assertFalse(c.latched)
+        self.assertEqual([e[0] for e in c.events], ["latched", "undone", "latched", "undone"])
+
+    def test_lever_over_centre_and_only_on_a_shut_cover(self):
+        deg = lambda q, open_deg: math.degrees(R.lever_target(math.radians(q), open_deg))  # noqa: E731
+        self.assertAlmostEqual(deg(0.0, 0.0), -L.LEV_PRELOAD_DEG)
+        self.assertAlmostEqual(deg(self.CENTRE - 0.1, 0.0), -L.LEV_PRELOAD_DEG)
+        self.assertAlmostEqual(deg(self.CENTRE, 0.0), 23.0)
+        self.assertAlmostEqual(deg(self.CLOSED, 0.0), 23.0)
+        self.assertAlmostEqual(deg(self.CLOSED, L.UNLATCH_DEG), -L.LEV_PRELOAD_DEG)  # a cover open 5 deg: springs back
+        self.assertAlmostEqual(deg(self.CLOSED, math.nan), -L.LEV_PRELOAD_DEG)
+
+    def test_catch_force_is_the_designs(self):
+        """Each catch needs LATCH_FORCE (5 N) at its press point at the lever's centre, under 1.5 N at the stop."""
+        torque = L.LEV_K * math.radians(L.LEV_TILT_DEG + L.LEV_PRELOAD_DEG)
+        self.assertAlmostEqual(torque / L.LEV_PRESS_U, L.LATCH_FORCE, places=6)
+        self.assertAlmostEqual(L.LATCH_FORCE, 5.0)
+        self.assertLess(L.LEV_K * math.radians(L.LEV_PRELOAD_DEG) / L.LEV_PRESS_U, 1.5)
+
+    def test_lever_kinematics_match_mechkit(self):
+        for deg in (0.0, 10.0, 20.0):
+            s = mk.state_from_poses(T.BOX_SPEC, (*L.BOX_ORIGIN, L.TOP, 0, 0, 0, 1),
+                                    joints={"cover": math.radians(L.COVER_OPEN_DEG), "catch_a": math.radians(deg)},
+                                    source="spec")
+            lo, hi = s.link_bounds("catch_a")
+            self.assertAlmostEqual(hi[2] - L.TOP, max(L.lever_top_z(u, deg) for u in (0.0, L.LEV_LEN)) + 0.0,
+                                   delta=0.003)
+
+    def test_levers_are_apart_and_clear_of_the_wall_and_cover(self):
+        self.assertGreater(L.CATCH_XS[1] - L.CATCH_XS[0], 0.10)
+        for x in L.CATCH_XS:
+            self.assertGreater(x - L.LEV_W / 2, L.BOX_X[0])
+            self.assertLess(x + L.LEV_W / 2, L.BOX_X[1])
+        self.assertLess(L.lever_top_z(0.0, 0.0), L.BOX_H - L.CATCH_TAB[2] - 0.001)  # under the shut cover's tab
 
     def test_rocker_over_centre(self):
         self.assertAlmostEqual(math.degrees(R.rocker_target(0.0)), -L.ROCKER_PRELOAD_DEG)
@@ -276,6 +342,9 @@ class Rules(unittest.TestCase):
             mk.set_targets = orig
         self.assertEqual(written[-1][:2], (S.SUPPLY, "rocker"))
         self.assertAlmostEqual(math.degrees(written[-1][2]), 23.0)
+        self.assertEqual([w[1] for w in written[:2]], list(L.LEV_NAMES))
+        self.assertAlmostEqual(math.degrees(written[0][2]), 23.0)  # closed lever, shut cover: held closed
+        self.assertTrue(T.CATCH.latched)
 
 
 # -- the scorer -------------------------------------------------------------------------------------------------------
@@ -484,14 +553,31 @@ class Demo(unittest.TestCase):
         self.assertIn("tool in the box", self.results["close_over_tool"][3].zero)
         m = self.results["close_over_tool"][2]
         self.assertTrue(m.catch.latched and m.open_deg == 0.0)  # the shortcut really shut and latched over the tool
+        self.assertEqual(m.lever_deg, [L.LEV_TRAVEL_DEG] * 2)
         self.assertIn("tool in the box", self.results["switch_first"][3].zero)
         self.assertIn("not latched", self.results["open_switch_on"][3].zero)
 
     def test_one_arm(self):
         self.assertEqual(self.left_idle[0], 0.0)  # right alone: tool out, switched on with the cover open
         self.assertIn("not latched", self.left_idle[3].zero)
-        self.assertEqual(self.right_idle[0], 0.0)  # left alone: closed and latched over the tool
-        self.assertTrue(self.right_idle[2].catch.latched)
+        self.assertEqual(self.right_idle[0], 0.0)  # left alone: closed over the tool, nothing latched or switched on
+        self.assertFalse(self.right_idle[2].catch.latched)
+        self.assertEqual(self.right_idle[2].lever_deg, [0.0, 0.0])
+
+    def test_each_catch_needs_its_own_press(self):
+        """A demo that presses only one of the two catches (or hovers over one) does not latch: no 1.0, no switch-on."""
+        for k in ("catch 1's lever down", "catch 2's lever down"):
+            score, at, model, tr = replay("", skip=k)
+            self.assertIsNone(at, k)
+            self.assertFalse(model.catch.latched, k)
+            self.assertLess(score, 1.0, k)
+            self.assertEqual(sum(d >= L.LEV_ON_DEG for d in model.lever_deg), 1, k)
+            self.assertIn("not latched", tr.zero)
+
+    def test_levers_only_hold_on_a_shut_cover(self):
+        """With the cover left open the pressed levers spring back: the catch does not hook."""
+        _score, _at, model, _tr = replay("open_switch_on")
+        self.assertEqual(model.lever_deg, [0.0, 0.0])
 
     def test_hold_only(self):
         os.environ["DEMO_HOLD_ONLY"] = "1"
@@ -523,10 +609,11 @@ class Demo(unittest.TestCase):
     def test_six_deliberate_moves(self):
         r = [w.label for w in T.plans("")["right"]]
         lft = [w.label for w in T.plans("")["left"]]
-        for k in ("grip the handle", "lower it into the tray", "press the rocker's ON end"):
+        for k in ("grip the handle", "lower it into the tray", "press catch 1's lever", "press catch 2's lever",
+                  "press the rocker's ON end"):
             self.assertEqual(sum(k in lab for lab in r), 1, k)
-        for k in ("push the cover over", "over the shut cover", "press the catches home"):
-            self.assertEqual(sum(k in lab for lab in lft), 1, k)
+        self.assertEqual(sum("push the cover over" in lab for lab in lft), 1)
+        self.assertFalse(any("press" in lab for lab in lft))
 
     def test_finger_commands(self):
         for side, ws in T.plans("").items():
@@ -538,15 +625,16 @@ class Demo(unittest.TestCase):
                 self.assertAlmostEqual(w.yaw, math.pi / 2)
 
     def test_presses_are_commanded_past_contact(self):
-        """The arm gives about 1 mm per newton: the catch press 8 mm past the cover's top, the rocker 6 mm past the
-        ON position and 10.9 mm past first contact (4 N needs about 4 mm)."""
-        self.assertAlmostEqual(T.CATCH_PRESS_DEPTH, 0.008)
-        self.assertGreaterEqual(T.CATCH_PRESS_DEPTH * 1000, L.CATCH_FORCE)
+        """The arm gives about 1 mm per newton: each catch press 8 mm past its lever's closed position, 10.5 mm or more
+        past the lever's centre (5 N needs about 5 mm), the rocker 6 mm past the ON position and 10.9 mm past first
+        contact (4 N needs about 4 mm)."""
+        self.assertAlmostEqual(T.LATCH_PRESS_DEPTH, 0.008)
+        centre_top = L.lever_top_z(L.LEV_PRESS_U - 0.0135, L.LEV_CENTRE_DEG)
+        self.assertGreater((centre_top - T.LATCH_PRESS_TIPS) * 1000, 2 * L.LATCH_FORCE)
         first = L.rocker_top_z(L.PRESS_U, 0.0)
         centre = L.rocker_top_z(L.PRESS_U, L.ROCKER_CENTRE_DEG)
         self.assertGreater((centre - T.ROCKER_PRESS_TIPS) * 1000, 2 * L.SWITCH_FORCE)
         self.assertGreater(first - T.ROCKER_PRESS_TIPS, 0.010)
-        self.assertTrue(R.in_catch_zone((*T.CATCH_PRESS, L.TOP + L.BOX_H)))
         self.assertGreater(T.ROCKER_XY[0] - 0.004 - L.SUP_XY[0], 0.0)  # the pad block on the ON half only
 
     def test_grippers_13_cm_apart(self):
@@ -598,6 +686,17 @@ class Capsules(unittest.TestCase):
             t = np.clip(((pts - a) @ ab) / (ab @ ab), 0.0, 1.0)
             best = min(best, float((np.linalg.norm(pts - (a + t[:, None] * ab), axis=1) - r).min()))
         return best
+
+    def test_right_hand_clears_the_box_wall_and_shut_cover_at_the_catches(self):
+        pts = np.vstack([L.cover_plate_points(0.0, 0.004) + np.array([0.0, 0.0, L.TOP]),
+                         np.array([(x, L.BOX_Y[0], z + L.TOP) for x in np.arange(L.BOX_X[0], L.BOX_X[1], 0.005)
+                                   for z in np.arange(0.0, L.RIM, 0.004)])])
+        t0 = sum(w.duration for w in T.plans("")["right"][:next(
+            i for i, w in enumerate(T.plans("")["right"]) if "over catch 1" in w.label)])
+        t1 = sum(w.duration for w in T.plans("")["right"][:next(
+            i for i, w in enumerate(T.plans("")["right"]) if "over the rocker" in w.label)])
+        worst = min(self._clear(caps, pts) for _t, caps, _l in self._path("right", t0, t1))
+        self.assertGreater(worst, 0.008)
 
     def test_left_push_takes_the_cover_past_its_balance(self):
         od, start_clear = L.COVER_OPEN_DEG, None
@@ -695,8 +794,14 @@ class Text(unittest.TestCase):
             self.assertIn(s, scoring, s)
         self.assertEqual((L.SHUT_DEG, L.UNLATCH_DEG, L.OPEN_LIVE_DEG, L.GATE_TOP, L.WINDOW_S, L.STILL_M, L.CLEAR_M),
                          (2.0, 5.0, 5.0, 0.14, 1.0, 0.002, 0.05))
-        self.assertIn("6 cm", self.spec["fidelity"])
-        self.assertIn("0.25 s", self.spec["fidelity"])
+        self.assertIn("5 N", self.spec["fidelity"])
+        self.assertIn("5 degrees", self.spec["fidelity"])
+        for s in ("3 cm wide and 6 cm long", "4 cm from the hinge", "about 5 N", "9.5 cm up", "10 degrees",
+                  "y 1.0 to 2.2", "x 21.4 to 31.1"):
+            self.assertIn(s, setup, s)
+        self.assertEqual((L.LEV_W, L.LEV_LEN, L.LEV_PRESS_U, L.LEV_PIVOT_Z, L.LEV_TILT_DEG, L.LATCH_FORCE),
+                         (0.03, 0.06, 0.04, 0.095, 10.0, 5.0))
+        self.assertIn("both catch levers closed", scoring)
         self.assertIn("1910.333(b)(2)(v)(A)", self.spec["context"])
         self.assertIn("818,700", self.spec["context"])
 
