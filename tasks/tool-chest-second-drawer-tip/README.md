@@ -97,7 +97,7 @@ straight down.
 | 19.8 to 29.8 | home | along the drawer's front, past the chest's side, open, down on the handle, grip, lift |
 | 29.8 to 39.8 | home | carry it over the bay, lower it to 3 mm over the organiser, let go, up, home |
 
-The demo ends 39.8 s in (857 steps with the policy's hold); success starts counting once the screwdriver has been
+The demo ends 39.8 s in (the GPU run stopped at step 832 after the hold); success counts once the screwdriver has been
 still and both hands clear for 1 s. Closest approach of the finger pads (boxes, exact): 15 mm to the right drawer's
 front while astride its pull, 47 mm to the left drawer's front while pushing; the gripper housing stays 24 mm or more
 from the chest. The two TCPs never come closer than 30 cm.
@@ -148,8 +148,9 @@ ordinary parts (a hobby woodworker needs about two hours; materials are well und
 - Feet: four rubber feet 20 x 20 x 8, each 5 mm in from the front or back face and from the side (chest 190 tall).
 - Slides: four stock 200 mm (8 inch) full-extension ball-bearing side-mount slides, 12.7 mm thick, rated about
   35 kg a pair (two pairs; a drawer carries 5 kg); a screw through each track stops travel at 190 mm.
-- Drawer boxes: 6 mm ply, 267 wide (the slides take 25.4 of the 292 opening), 200 deep, 55 tall walls, behind a
-  290 x 75 x 15 front panel whose bottom edge is 106 above the table.
+- Drawer boxes: 6 mm ply, 265 wide, 200 deep, 55 tall walls, behind a 290 x 75 x 15 front panel whose bottom
+  edge is 106 above the table. Each opening is 291 wide (600 less two 6 mm sides and the 6 mm divider, halved);
+  the two slides take 25.4 of it, leaving 0.3 mm a side, inside the slides' usual +0.8 mm mounting tolerance.
 - Pulls: 12 x 12 x 120 mm steel bar on two 8 mm stems, 35 mm clear of the front, 143 above the table.
 - Organiser: 25 mm foam over a 6 mm steel plate; the right drawer has a bay 240 x 70 cut to the plate, 77.5 behind
   the front's back face.
