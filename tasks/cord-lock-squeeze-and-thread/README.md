@@ -227,9 +227,22 @@ object jitter 0, 20 Hz control), one trial each:
 | Scripted demo, right arm idle (`DEMO_IDLE_ARM=right`) | 0.0 |
 | One-arm slide, left (`DEMO_VARIANT=slide_left`) | 0.0 |
 | One-arm slide, right (`DEMO_VARIANT=slide_right`) | 0.0 |
-| Dream-1 | 0.0 |
+| Dream-1, full 900-step run limit | 0.0 |
 
-## Revision (2026-11-17)
+## Revision 2 (2026-11-17): Dream-1 step count
+
+Review feedback (Not accepted, revisable), verbatim: "Dream-1 was reported at 1,200 steps, beyond the stated 900-step
+limit. [...] Please provide a Dream-1 result and recording capped at 900 steps, with the score at that limit."
+
+The earlier Dream-1 run (job 20261115T175724) was already capped at 900 steps; the figure 1,200 in the scores line
+and in a run note was a wording error in this text. Because the instruction's wording had been edited after that run,
+every run was repeated on 2026-11-17 with the current task folder (L40S, job 20261117T102900), each capped at the
+task's 900-step run limit: demo 1.0 (success held at step 601), left arm idle 0.0, right arm idle 0.0, Dream-1 0.0.
+The Dream-1 recording submitted with this revision is that run: 901 frames (the first frame plus 900 steps) at
+20 Hz, 45 s, with the score 0.0 at the 900-step limit. The screenshot and both videos are from these runs. Nothing in
+the scene, the demo or the scorer changed in this revision.
+
+## Revision 1 (2026-11-17)
 
 Review feedback (Not accepted, revisable), verbatim: "Task is not immediately relatable. Should be modified to
 represent one of the specific contexts cited."
@@ -254,7 +267,7 @@ the push, the release and the scoring are unchanged; the right arm now grips the
 carried it, so its pick moves 67 mm and its move along y before the push is gone. Title, instruction, context,
 setup, fidelity, reset notes, this README, `layout.py`, `task.py` (the bag, the loop, the knot as cablekit's end plug,
 the longer cord) and the tests (bag, loop and knot geometry, the cord's slide within the knot's 180 mm for every plan)
-were rewritten. GPU runs of the revised scene (L40S, 2026-11-15, jobs 20261115T175724 and 20261115T175725): demo 1.0
-(run ended at step 601 of 1200), left arm idle 0.0, right arm idle 0.0, the one-arm slides `slide_left` 0.0 and
-`slide_right` 0.0, Dream-1 0.0. The submitted screenshot and videos are from these runs; the later wording changes to
+were rewritten. GPU runs of the revised scene (L40S, 2026-11-15, jobs 20261115T175724 and 20261115T175725; repeated 2026-11-17, job
+20261117T102900, with the same results): demo 1.0 (success held at step 601 of the 900-step limit), left arm idle 0.0, right arm idle 0.0, the one-arm slides `slide_left` 0.0 and
+`slide_right` 0.0, Dream-1 0.0 over the full 900-step limit. The submitted screenshot and videos are from these runs; the later wording changes to
 the title, instruction and context do not touch the scene, the demo or the scorer.

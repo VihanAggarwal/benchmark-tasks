@@ -21,6 +21,6 @@
   "run_limit": "900 steps (45 s at 20 Hz)",
   "fidelity": "PhysX 240 Hz, control 20 Hz. The filled duffel is a rigid box fixed to the table (fabric not simulated; the cord pulls it with under 1 N), its lash loop two rigid 2 mm plates, the knot a rigid block. The spring is a prismatic joint, 1.5 N/mm; the cord is 20 mm capsules, no stretch, so it holds the button 3.5 mm out; square edges. These are our estimates: the lock's walls, plunger, hole position, travel and spring rate, the cord's stiffness, the bungee's size and length, loop and knot.",
   "reset_notes": "Press the button and pull the lock off the bungee's free end (the button springs back 7 mm out). Slide the cord back through the bag's loop until its free end lies at y 7 and lay it straight along y at x 300, the knot behind the loop. Lay the lock on a long side with its body centre at x 302, y 130, button toward +x, hole axis along y. Check that the pen rings can be read.",
-  "scores": "Dream-1 run: 0.0 (1200 steps); demo: 1.0 (601 steps)",
-  "media": "M-5TNJ63"
+  "scores": "Dream-1 run: 0.0 (full 900-step run limit); demo: 1.0 (601 steps)",
+  "media": "M-WG9DY2"
 }
