@@ -95,9 +95,10 @@ def crown_centre_z() -> float:
 
 
 def body_grip_z() -> float:
-    """Height (m) above the mill's base where the left gripper holds the body: low on the straight lower body (12 to
-    52 mm), so the left gripper stays well below the right hand turning the crown."""
-    return 26.0 * MM
+    """Height (m) above the mill's base where the left gripper holds the body: 49 mm, the whole mill's centre of
+    mass (body 170 g at 36 mm, head 45 g at 96 mm), on the straight lower body (12 to 52 mm). Held there, the mill's
+    weight has no lever about the line between the two pads."""
+    return 49.0 * MM
 
 
 def turns(angle_rad: float) -> float:

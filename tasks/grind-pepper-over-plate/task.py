@@ -134,30 +134,46 @@ def score(objects) -> float:
 
 # -- the scripted demo ----------------------------------------------------------------------------------------------
 # Open loop: timed waypoints from the known start layout, nothing read from the simulator. TCP points.
-# LEFT holds the body from the robot's left side: the stock straight-down grip turned -90 deg about the vertical
-#   (pads closing along world x) and rolled 50 deg about world x, so it reaches in toward -y and down; the pads'
-#   middle on the mill's axis, 26 mm above the base. It lifts the mill, carries it over the plate's centre with
-#   its base 15 mm above the plate's top, holds it there through the grinding, then stands it back on its start spot.
-# RIGHT turns the head from above, straight down, the pads on the crown's rim, their tips 12 mm below the crown:
-#   each stroke closes, turns 150 deg clockwise (seen from above), opens and turns back; 13 strokes, 1950 deg.
+# LEFT holds the body from the robot's side: the stock straight-down grip (pads closing along world y) pitched 70 deg
+#   about world y, so it reaches in along +x and a little down; the pads' middle on the mill's axis 49 mm above the
+#   base, the mill's centre of mass, so its weight has no lever about the line through the pads (gripped low, it
+#   rolls over in the fingers). It lifts the mill, carries it over the plate's centre with its base 15 mm above the
+#   plate's top, holds it there through the grinding, then stands it back on its start spot.
+# RIGHT turns the head from above, straight down, the pads on the crown's rim, their tips 4 mm below it. Each stroke
+#   closes, turns 110 deg clockwise (seen from above), opens and turns back, from yaw +55 to -55 deg: the two fingers
+#   then sweep two 110 deg arcs either side of the robot and never the 70 deg gap toward -x where the left gripper
+#   is. 18 strokes, 1980 deg: a margin over five turns for the pads slipping on the crown.
 OPEN, CLOSED = 1.0 * -0.04695, 0.0  # finger joint targets (m): yam_arena.constants.FINGER_OPEN / FINGER_CLOSED
-LEFT_YAW, LEFT_ROLL = -math.pi / 2, math.radians(-50.0)
-RIGHT_YAW0 = math.radians(80.0)  # the stroke starts here and turns down to -70 deg: inside the wrist's range
-STROKE = math.radians(150.0)
-STROKES = 13  # 1950 deg: a margin over five turns for the pads slipping on the crown
+LEFT_PITCH = math.radians(70.0)
+RIGHT_YAW0 = math.radians(55.0)  # each stroke turns from here down to -55 deg (the wrist reaches -60 to +165 here)
+STROKE = math.radians(110.0)
+STROKES = 18  # 1980 deg: a margin over five turns for the pads slipping on the crown
 HOLD_Z = 0.035  # m: the mill's base over the table top while it grinds (the plate's top is at 20 mm)
 LIFT_Z = 0.065  # m: carrying height of the mill's base
 VARIANTS = ("on_table", "three_turns", "leave_on_plate")
 
 
+def _ry(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+
+def _left_rotation() -> np.ndarray:
+    return _ry(-LEFT_PITCH) @ tiltgrip.rotation(0.0, 0.0)
+
+
 def _left_grip():
-    return tiltgrip.tilted(LEFT_YAW, LEFT_ROLL)
+    return tiltgrip.TiltedYaw(0.0, _left_rotation())
+
+
+def _left_approach() -> np.ndarray:
+    return _left_rotation()[:, 2]
 
 
 def _left_tcp(base_xyz) -> np.ndarray:
     """The left TCP holding the body when the mill's base centre is at ``base_xyz`` (world): the pads' middle on the
-    axis at the grip height (the TCP is 6 mm behind the pads' middle along the approach axis)."""
-    a = tiltgrip.approach(LEFT_YAW, LEFT_ROLL)
+    axis at the grip height (the TCP is 3 mm short of where the pads' middle meets the axis along the approach)."""
+    a = _left_approach()
     c = np.asarray(base_xyz, dtype=float) + np.array([0.0, 0.0, L.body_grip_z()])
     return c - 0.003 * a
 
@@ -173,7 +189,7 @@ def _w(duration, tcp, finger, label, yaw) -> Waypoint:
 
 
 def left_plan(hold_s: float, variant: str = "") -> list[Waypoint]:
-    a = tiltgrip.approach(LEFT_YAW, LEFT_ROLL)
+    a = _left_approach()
     g = _left_grip()
     start = np.array([*L.MILL_START, L.TOP])
     up = start + np.array([0.0, 0.0, LIFT_Z])
@@ -184,7 +200,7 @@ def left_plan(hold_s: float, variant: str = "") -> list[Waypoint]:
     grip = _left_tcp(start)
     back = grip - 0.07 * a
     plan = [
-        _w(2.0, back + np.array([0.0, 0.0, 0.04]), OPEN, "over and beside the mill's body", g),
+        _w(2.0, back + np.array([0.0, 0.0, 0.04]), OPEN, "behind the mill, on the robot's side", g),
         _w(1.0, back, OPEN, "level with the grip, 70 mm out along the approach", g),
         _w(1.2, grip, OPEN, "in: the pads either side of the body", g),
         _w(0.8, grip, CLOSED, "close on the body", g),
@@ -226,7 +242,7 @@ def right_plan(strokes: int, variant: str = "") -> tuple[list[Waypoint], float]:
         _w(1.5, above, OPEN, "over the crown", RIGHT_YAW0),
         _w(1.0, grip, OPEN, "down: the pads either side of the crown", RIGHT_YAW0),
     ]
-    steps = 3  # the 150 deg turn in three 50 deg steps, so each waypoint's slerp turns the short way
+    steps = 2  # the 110 deg turn in two 55 deg steps, so each waypoint's slerp turns the short way
     for i in range(strokes):
         plan.append(_w(0.5, grip, CLOSED, f"stroke {i + 1}: close on the crown", RIGHT_YAW0))
         for k in range(1, steps + 1):
