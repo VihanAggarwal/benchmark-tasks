@@ -115,7 +115,7 @@ def success(objects) -> bool:
     arms = rigstate.arms()
     result = _TRACKER.update(objects, arms)
     row = {"episode": rigstate.episode(), "step": _TRACKER.steps, "score": result.score, "success": result.success,
-           "fallback_resets": _TRACKER.resets, **result.details}
+           **result.details}
     try:
         p = objects[PAN]
         row["pan"] = {"origin": _r(p.origin), "quat_xyzw": _r(p.quat_xyzw)}

@@ -180,13 +180,18 @@ class TestScoring(unittest.TestCase):
         r = run.leave(-54.0, n=10)
         self.assertEqual(r.score, 1.0)
 
-    def test_teleport_back_to_start_resets(self):
+    def test_a_failure_survives_a_jump_back_to_the_start(self):
+        # Only a real episode reset (rigstate.on_reset) clears the latch: the pan put back where it started, however
+        # fast, then turned in properly, still scores 0.
         run = Run()
-        run.step(90.0, holding(90.0), tilt=12.0)  # a failed trial
+        run.step(90.0, holding(90.0), tilt=12.0)  # tilted past the limit: failed
         run.swing(90.0, -54.0)
-        run.step(90.0, AWAY)  # the scene put back
-        self.assertEqual(run.t.resets, 1)
-        self.assertIsNone(run.t.last.details["failed"])
+        run.step(90.0, AWAY)  # straight back to the starting pose in one step
+        r = run.leave(-54.0, n=40)
+        self.assertIsNotNone(r.details["failed"])
+        self.assertEqual(r.score, 0.0)
+        run.t.reset()  # what the episode reset calls
+        self.assertIsNone(run.t.last.details.get("failed"))
 
 
 class TestDemo(unittest.TestCase):

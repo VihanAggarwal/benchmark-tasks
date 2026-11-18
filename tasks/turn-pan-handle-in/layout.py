@@ -91,8 +91,6 @@ LET_GO = 0.030
 STILL_WINDOW_S = 1.0
 STILL_MOVE = 0.002
 EPS = 1e-9
-RESET_START_TOL = 0.004
-RESET_JUMP = 0.05
 
 
 def element(name: str):

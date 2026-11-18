@@ -106,7 +106,6 @@ def _mm(v) -> float | None:
 class Tracker:
     def __init__(self, control_hz: float = L.CONTROL_HZ) -> None:
         self.window = max(1, int(round(L.STILL_WINDOW_S * control_hz)))
-        self.resets = 0
         self.reset()
 
     def reset(self) -> None:
@@ -117,16 +116,6 @@ class Tracker:
         self.hist: deque = deque(maxlen=self.window + 1)
         self.ok: deque = deque(maxlen=self.window)
         self.last = Result(0.0, False, {})
-
-    @staticmethod
-    def at_start(r: Reading) -> bool:
-        start = np.array(L.pan_start())
-        return (float(np.linalg.norm(r.origin - start)) <= L.RESET_START_TOL and tilt_deg(r.rot) <= 1.0
-                and abs(handle_yaw_deg(r) - math.degrees(L.PAN_START_YAW)) <= 2.0)
-
-    @classmethod
-    def teleported(cls, prev: Reading, now: Reading) -> bool:
-        return cls.at_start(now) and float(np.linalg.norm(now.track - prev.track, axis=1).max()) >= L.RESET_JUMP
 
     def update(self, states: dict, arms) -> Result:
         self.steps += 1
@@ -139,10 +128,6 @@ class Tracker:
             self.prev = None
             self.last = Result(0.0, False, {"valid_state": False, "bad_steps": self.bad_steps})
             return self.last
-        if self.prev is not None and self.teleported(self.prev, r):
-            self.reset()
-            self.steps = 1
-            self.resets += 1
         self.prev = r
         self.hist.append(r)
         if self.failed is None:
