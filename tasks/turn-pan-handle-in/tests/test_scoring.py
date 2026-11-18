@@ -190,17 +190,20 @@ class TestScoring(unittest.TestCase):
 
 
 class TestDemo(unittest.TestCase):
-    def test_demo_ends_in_the_safe_sector_and_lets_go(self):
+    def test_demo_aims_inside_the_safe_sector_and_lets_go(self):
         left = T.plans()["left"]
         closed = [w for w in left if w.finger == T.CLOSED]
-        self.assertAlmostEqual(math.degrees(float(closed[-1].yaw)), T.TARGET_YAW_DEG, places=6)
-        self.assertIn(T.TARGET_YAW_DEG, L.safe_yaws(1.0))
+        aim = math.degrees(float(closed[-1].yaw))
+        self.assertAlmostEqual(aim, T.TARGET_YAW_DEG - T.OVERSHOOT_DEG, places=6)
+        safe = L.safe_yaws(1.0)
+        self.assertIn(T.TARGET_YAW_DEG, safe)
+        self.assertIn(round(aim), safe)  # even with no lag at all the handle ends safe
         self.assertEqual(left[-1].finger, T.OPEN)
 
     def test_demo_turn_follows_the_circle_about_the_pan(self):
         r0 = math.hypot(*(L.grip_point()[:2]))
         for w in T.plans()["left"]:
-            if w.finger == T.CLOSED:
+            if w.finger == T.CLOSED and "slide the pan" not in w.label and w.label != "settle":
                 d = math.hypot(w.pos[0] - START[0], w.pos[1] - START[1])
                 self.assertAlmostEqual(d, r0, places=6)
 

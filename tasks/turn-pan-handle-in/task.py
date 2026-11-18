@@ -144,8 +144,14 @@ def score(objects) -> float:
 # grip point makes about the pan's base centre while the yaw turns with it, so the pan turns in place on its burner:
 # from +90 deg (out past the left edge) clockwise through the back (+0, over the hot element only in passing) to
 # -54 deg, the middle of the safe sector (-70 to -37 deg). Then let go and lift away.
+# The pads' grip on the sleeve gives a little in yaw while the pan's base drags round on the glass, so the pan lags
+# the hand by about 6 deg and pivots on the grip, its centre moving about 25 mm (measured in the simulator, the same
+# every run: the layout is fixed). The plan turns 6 deg further, then slides the pan straight back by that much,
+# still gripped, as a cook nudges a pan back onto its ring, before letting go.
 OPEN, CLOSED = -0.04695, 0.0
 TARGET_YAW_DEG = -54.0
+OVERSHOOT_DEG = 6.0
+RECENTRE = (0.0076, 0.0236)  # m, world: how far the gripped pan is slid back onto its ring after the turn
 TURN_STEP_DEG = 8.0
 TURN_SEG_S = 0.55  # per 8 deg: about 15 deg/s
 VARIANTS = ("to_back", "to_middle", "hold_on")
@@ -166,7 +172,8 @@ def _w(duration, tcp, finger, label, yaw_rad) -> Waypoint:
     return Waypoint(float(duration), tuple(float(v) for v in tcp), float(finger), label, float(yaw_rad))
 
 
-def left_plan(target_deg: float = TARGET_YAW_DEG, let_go: bool = True) -> list[Waypoint]:
+def left_plan(target_deg: float = TARGET_YAW_DEG - OVERSHOOT_DEG, let_go: bool = True,
+              recentre: bool = True) -> list[Waypoint]:
     y0 = L.PAN_START_YAW
     up = np.array([0.0, 0.0, 0.06])
     plan = [
@@ -181,14 +188,19 @@ def left_plan(target_deg: float = TARGET_YAW_DEG, let_go: bool = True) -> list[W
         plan.append(_w(TURN_SEG_S, grip_tcp(d), CLOSED, "swing the handle round, the pan turning in place", d))
     t = math.radians(target_deg)
     plan.append(_w(0.5, grip_tcp(t), CLOSED, "settle", t))
+    end = grip_tcp(t)
+    if recentre:
+        end = end + np.array([RECENTRE[0], RECENTRE[1], 0.0])
+        plan.append(_w(1.2, end, CLOSED, "slide the pan straight back onto the middle of its ring", t))
+        plan.append(_w(0.4, end, CLOSED, "settle", t))
     if not let_go:
-        plan.append(_w(6.0, grip_tcp(t), CLOSED, "keep holding the handle", t))
+        plan.append(_w(6.0, end, CLOSED, "keep holding the handle", t))
         return plan
     plan += [
-        _w(0.6, grip_tcp(t), OPEN, "let go", t),
-        _w(1.0, grip_tcp(t) + up, OPEN, "straight up", t),
-        _w(1.2, grip_tcp(t) + up + np.array([-0.10, 0.05, 0.08]), OPEN, "away", t),
-        _w(2.5, grip_tcp(t) + up + np.array([-0.10, 0.05, 0.08]), OPEN, "hold", t),
+        _w(0.6, end, OPEN, "let go", t),
+        _w(1.0, end + up, OPEN, "straight up", t),
+        _w(1.2, end + up + np.array([-0.10, 0.05, 0.08]), OPEN, "away", t),
+        _w(2.5, end + up + np.array([-0.10, 0.05, 0.08]), OPEN, "hold", t),
     ]
     return plan
 
@@ -197,9 +209,9 @@ def plans(variant: str = "") -> dict:
     if variant not in ("", *VARIANTS):
         raise ValueError(f"DEMO_VARIANT={variant!r} is not one of {', '.join(VARIANTS)}")
     if variant == "to_back":  # the textbook "toward the back": over the hot left rear element
-        return {"left": left_plan(0.0)}
+        return {"left": left_plan(0.0, recentre=False)}
     if variant == "to_middle":  # "toward the middle": over the lit right front element
-        return {"left": left_plan(-90.0)}
+        return {"left": left_plan(-90.0, recentre=False)}
     if variant == "hold_on":  # the right place, but the pan is never let go
         return {"left": left_plan(let_go=False)}
     return {"left": left_plan()}
