@@ -1,4 +1,4 @@
-# Grind pepper over a plate with a twist pepper mill, then stand it back up
+# Grind five turns of pepper over a plate with a twist mill, then stand the mill back up
 
 A 12 cm wooden twist pepper mill stands on the table to the robot's left; an empty dinner plate lies in front of the
 right arm. The robot has to grind pepper over the middle of the plate, five full turns of the mill's head, holding
@@ -60,17 +60,26 @@ the 80 mm circle), then check that the mill stands upright off the plate.
 
 Open loop: timed waypoints from the known start layout.
 
-1. Left: the straight-down grip turned -90 degrees and rolled 50 degrees about world x reaches in from the robot's
-   left side and closes on the lower body, 26 mm above the base; it lifts the mill 65 mm, carries it over the
-   plate's centre and lowers it until the base is 15 mm above the plate's top, and holds it there.
-2. Right: straight down, the pads either side of the crown, their tips 4 mm below it. Thirteen strokes: close, turn
-   150 degrees clockwise (in three 50 degree steps), open, turn back. 1950 degrees in all, a margin over five turns
-   for the pads slipping on the crown.
-3. Right: up off the crown and clear. Left: lifts the mill, carries it back to its start spot, stands it down, lets
-   go and backs out.
+1. Left: the straight-down grip pitched 70 degrees about world y reaches in from the robot's side and closes on the
+   lower body 49 mm above the base, the whole mill's centre of mass (held lower, the top-heavy mill rolls over in the
+   pads). It lifts the mill 65 mm, carries it over the plate's centre, lowers it until the base is 25 mm above the
+   plate's top, and holds it there.
+2. Right: straight down, the pads either side of the crown, their tips 4 mm below it. Twenty strokes: close, turn
+   110 degrees clockwise (yaw +55 to -55 degrees, in two steps), open, turn back. The two fingers then sweep two 110
+   degree arcs either side of the robot and never the 70 degree gap toward the robot, where the left gripper is.
+   2200 degrees commanded; the pads slip about 8 degrees a stroke, so the head turns about 2020 degrees (5.6 turns).
+3. Right: up off the crown and clear. Left: carries the mill back to its start spot, stands it down, lets go, backs
+   out 50 mm along its approach and lifts 180 mm, clear of the mill.
+
+Each finger is driven to its target on its own. Told to close right up, both saturate at their effort limit on the
+part and nothing centres it between them, so the part drifts along the closing axis (in the first runs the mill slid
+21 mm off centre in the left grip and the right fingers then missed the crown). The demo closes each finger to 3 mm
+inside the part instead, so the pads squeeze at about 15 N each and their position springs keep the part centred,
+as the real gripper's single rack does.
 
 Counterfactual variants (DEMO_VARIANT, never the submitted demo): `on_table` grinds with the mill standing on its
-start spot (0); `three_turns` makes six strokes (0.45); `leave_on_plate` sets the mill down on the plate (0.75).
+start spot (0); `three_turns` makes 11 strokes, about three turns (0.45); `leave_on_plate` sets the mill down on the plate
+(0.75).
 
 ## Run it
 
@@ -83,15 +92,28 @@ INSTR="Grind pepper over the middle of the plate: five full turns of the mill's 
 # the scripted demo
 inspect-robots run --embodiment yam_arena --policy yam_scripted -E task=$PWD/task.py -E object_jitter=0 \
   -E control_hz=20 -E cam_width=320 -E cam_height=176 --instruction "$INSTR" --scorer task_score \
-  --max-steps 1800 --store-frames --log-dir ~/yam-eval/pepper-demo
+  --max-steps 2000 --store-frames --log-dir ~/yam-eval/pepper-demo
 # Dream-1
 inspect-robots run --embodiment yam_arena --policy dream -E task=$PWD/task.py -E object_jitter=0 \
   -E control_hz=20 -E cam_width=320 -E cam_height=176 --instruction "$INSTR" --scorer task_score \
-  --max-steps 1800 --store-frames --log-dir ~/yam-eval/pepper-dream
+  --max-steps 2000 --store-frames --log-dir ~/yam-eval/pepper-dream
 ```
 
 `TASK_TRACE=<file>` writes one JSON line per control step (what the scorer saw and decided). No seeds: the layout is
 fixed (`object_jitter=0`). Offline tests (no simulator; numpy and the pure-Python yam_arena package):
 `PYTHONPATH=<yam-isaac-lab-arena checkout> python3 -m unittest discover -s tests -v`.
 
-Runtime per trial: RESULTS_PENDING
+Runtime per trial on an L40S: about 4 minutes for the scripted demo (16 s to start Isaac Sim, then 1,614 steps to
+success) and about 6 to 9 minutes for a Dream-1 run of 2,000 steps (the policy is queried over the network each step).
+
+## Results
+
+| Run | Score | Steps |
+|---|---|---|
+| Scripted demo | 1.0 (2025 degrees ground over the plate, 5 turns; stood back up, let go) | 1,614 (success) |
+| Dream-1 | 0.0 (no turn ground; the mill was not lifted) | 2,000 (the limit) |
+| Variant `on_table` | 0 (the head turned about 5.6 times, none of it over the plate) | |
+| Variant `three_turns` | 0.45 (1114 degrees: 3 turns) | |
+| Variant `leave_on_plate` | 0.75 (5 turns; left on the plate) | |
+
+The demo scored the same, to the tenth of a degree, on two runs.

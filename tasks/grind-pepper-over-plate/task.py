@@ -142,13 +142,27 @@ def score(objects) -> float:
 # RIGHT turns the head from above, straight down, the pads on the crown's rim, their tips 4 mm below it. Each stroke
 #   closes, turns 110 deg clockwise (seen from above), opens and turns back, from yaw +55 to -55 deg: the two fingers
 #   then sweep two 110 deg arcs either side of the robot and never the 70 deg gap toward -x where the left gripper
-#   is. 18 strokes, 1980 deg: a margin over five turns for the pads slipping on the crown.
-OPEN, CLOSED = 1.0 * -0.04695, 0.0  # finger joint targets (m): yam_arena.constants.FINGER_OPEN / FINGER_CLOSED
+#   is. 20 strokes, 2200 deg: in the simulator the pads slip about 8 deg a stroke, so the head turns about 2020 deg.
+OPEN, CLOSED = -0.04695, 0.0  # finger joint targets (m): yam_arena.constants.FINGER_OPEN / FINGER_CLOSED
+# Each finger is driven on its own toward its target; told to close right up (0), both saturate at their effort limit
+# on the part and nothing centres it between them, so it drifts along the closing axis. The demo closes each finger
+# to 3 mm inside the part instead (the pads then squeeze it at about 15 N each, below the limit), so their position
+# springs keep the part centred, as the YAM's single rack does on the real gripper.
+SQUEEZE = 0.003  # m per finger
+
+
+def grip_on(width: float) -> float:
+    """The finger target (m) that closes the pads to 2 x SQUEEZE inside a part ``width`` m across."""
+    return -(width / 2 - SQUEEZE)
+
+
+BODY_GRIP = grip_on(2 * L.BODY_PROFILE[1][1] * L.MM)  # the lower body, 52 mm
+CROWN_GRIP = grip_on(2 * L.HEAD_PROFILE[0][1] * L.MM)  # the crown, 58 mm
 LEFT_PITCH = math.radians(70.0)
 RIGHT_YAW0 = math.radians(55.0)  # each stroke turns from here down to -55 deg (the wrist reaches -60 to +165 here)
 STROKE = math.radians(110.0)
-STROKES = 18  # 1980 deg: a margin over five turns for the pads slipping on the crown
-HOLD_Z = 0.035  # m: the mill's base over the table top while it grinds (the plate's top is at 20 mm)
+STROKES = 20  # 2200 deg: the pads slip about 8 deg a stroke on the crown, so this ends near 2020 deg
+HOLD_Z = 0.045  # m: the mill's base over the table top while it grinds (the plate's top is at 20 mm)
 LIFT_Z = 0.065  # m: carrying height of the mill's base
 VARIANTS = ("on_table", "three_turns", "leave_on_plate")
 
@@ -203,11 +217,11 @@ def left_plan(hold_s: float, variant: str = "") -> list[Waypoint]:
         _w(2.0, back + np.array([0.0, 0.0, 0.04]), OPEN, "behind the mill, on the robot's side", g),
         _w(1.0, back, OPEN, "level with the grip, 70 mm out along the approach", g),
         _w(1.2, grip, OPEN, "in: the pads either side of the body", g),
-        _w(0.8, grip, CLOSED, "close on the body", g),
-        _w(1.2, _left_tcp(up), CLOSED, "lift the mill 65 mm", g),
-        _w(2.2, _left_tcp(over), CLOSED, "carry it over the plate's centre", g),
-        _w(1.0, _left_tcp(hold), CLOSED, "lower: the base 15 mm over the plate's top", g),
-        _w(hold_s, _left_tcp(hold), CLOSED, "hold the body while the head is turned", g),
+        _w(0.8, grip, BODY_GRIP, "close on the body", g),
+        _w(1.2, _left_tcp(up), BODY_GRIP, "lift the mill 65 mm", g),
+        _w(2.2, _left_tcp(over), BODY_GRIP, "carry it over the plate's centre", g),
+        _w(1.0, _left_tcp(hold), BODY_GRIP, "lower: the base 25 mm over the plate's top", g),
+        _w(hold_s, _left_tcp(hold), BODY_GRIP, "hold the body while the head is turned", g),
     ]
     if variant == "leave_on_plate":  # set it down on the plate instead of back on the table
         on_plate = np.array([*L.PLATE_CENTRE, L.TOP + L.PLATE_H * L.MM + 0.002])
@@ -215,13 +229,13 @@ def left_plan(hold_s: float, variant: str = "") -> list[Waypoint]:
     else:
         end = start + np.array([0.0, 0.0, 0.002])
     plan += [
-        _w(1.0, _left_tcp(over if variant != "on_table" else up), CLOSED, "lift clear of the plate", g),
-        _w(2.2, _left_tcp(end + np.array([0.0, 0.0, LIFT_Z])), CLOSED, "carry it back", g),
-        _w(1.2, _left_tcp(end), CLOSED, "lower it onto its base", g),
+        _w(1.0, _left_tcp(over if variant != "on_table" else up), BODY_GRIP, "lift clear of the plate", g),
+        _w(2.2, _left_tcp(end + np.array([0.0, 0.0, LIFT_Z])), BODY_GRIP, "carry it back", g),
+        _w(1.2, _left_tcp(end), BODY_GRIP, "lower it onto its base", g),
         _w(0.8, _left_tcp(end), OPEN, "let go", g),
-        _w(1.0, _left_tcp(end) - 0.07 * a, OPEN, "back out along the approach", g),
-        _w(1.0, _left_tcp(end) - 0.07 * a + np.array([0.0, 0.0, 0.08]), OPEN, "up and clear", g),
-        _w(2.0, _left_tcp(end) - 0.07 * a + np.array([0.0, 0.0, 0.08]), OPEN, "hold", g),
+        _w(1.0, _left_tcp(end) - 0.05 * a, OPEN, "back out along the approach", g),
+        _w(1.5, _left_tcp(end) - 0.05 * a + np.array([0.0, 0.0, 0.18]), OPEN, "straight up, well clear of the mill", g),
+        _w(2.0, _left_tcp(end) - 0.05 * a + np.array([0.0, 0.0, 0.18]), OPEN, "hold", g),
     ]
     return plan
 
@@ -244,9 +258,9 @@ def right_plan(strokes: int, variant: str = "") -> tuple[list[Waypoint], float]:
     ]
     steps = 2  # the 110 deg turn in two 55 deg steps, so each waypoint's slerp turns the short way
     for i in range(strokes):
-        plan.append(_w(0.5, grip, CLOSED, f"stroke {i + 1}: close on the crown", RIGHT_YAW0))
+        plan.append(_w(0.5, grip, CROWN_GRIP, f"stroke {i + 1}: close on the crown", RIGHT_YAW0))
         for k in range(1, steps + 1):
-            plan.append(_w(0.7, grip, CLOSED, f"stroke {i + 1}: turn clockwise", RIGHT_YAW0 - STROKE * k / steps))
+            plan.append(_w(0.7, grip, CROWN_GRIP, f"stroke {i + 1}: turn clockwise", RIGHT_YAW0 - STROKE * k / steps))
         plan.append(_w(0.4, grip, OPEN, f"stroke {i + 1}: open", RIGHT_YAW0 - STROKE))
         for k in range(steps - 1, -1, -1):
             plan.append(_w(0.35, grip, OPEN, f"stroke {i + 1}: turn back, open", RIGHT_YAW0 - STROKE * k / steps))
@@ -261,7 +275,7 @@ def right_plan(strokes: int, variant: str = "") -> tuple[list[Waypoint], float]:
 def plans(variant: str = "") -> dict:
     if variant not in ("", *VARIANTS):
         raise ValueError(f"DEMO_VARIANT={variant!r} is not one of {', '.join(VARIANTS)}")
-    strokes = 6 if variant == "three_turns" else STROKES
+    strokes = 11 if variant == "three_turns" else STROKES  # 1210 deg commanded, about 3.1 turns
     right, off_crown = right_plan(strokes, variant)
     hold_s = off_crown - LEFT_READY_S + 0.3  # the left holds until the right is up off the crown, and a margin
     return {"left": left_plan(hold_s, variant), "right": right}
@@ -271,7 +285,7 @@ def demo():
     """Both arms. DEMO_HOLD_ONLY=1: no plan (both arms hold the ready pose, a settling check).
     DEMO_VARIANT (counterfactual runs for the README, never the submitted demo):
       on_table        the same grinding with the mill standing on its start spot, not over the plate (0)
-      three_turns     only six strokes over the plate (three turns), then stood back (0.45)
+      three_turns     only 11 strokes over the plate (about three turns), then stood back (0.45)
       leave_on_plate  five turns, then the mill set down on the plate instead of the table (0.75)"""
     if os.environ.get("DEMO_HOLD_ONLY") == "1":
         return {}

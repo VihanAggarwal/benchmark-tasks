@@ -251,7 +251,7 @@ class TestDemo(unittest.TestCase):
         right = T.plans()["right"]
         turned = 0.0
         for a, b in zip(right, right[1:]):
-            if a.finger == T.CLOSED and b.finger == T.CLOSED:
+            if a.finger == T.CROWN_GRIP and b.finger == T.CROWN_GRIP:
                 turned += max(0.0, float(a.yaw) - float(b.yaw))
         self.assertGreaterEqual(math.degrees(turned), 5 * 360.0)
 
