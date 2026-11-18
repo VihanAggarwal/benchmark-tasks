@@ -1,0 +1,21 @@
+{
+  "title": "Sweep up a broken glass with a dustpan and brush, holding the pan flat at the table",
+  "category": "Societal relatability",
+  "keywords": [
+    "dustpan",
+    "brush",
+    "broken glass",
+    "sweeping",
+    "bimanual",
+    "tool use",
+    "household"
+  ],
+  "instruction": "A glass broke on the table. Sweep all the pieces into the dustpan with the brush without touching any of them, then put the brush down and leave the dustpan flat on the table.",
+  "context": "Sweeping up a broken glass with a dustpan and brush is a familiar household chore. The pieces are sharp, so they are swept up, never picked up by hand; one hand holds the dustpan flat and still with its lip on the table while the other brushes the pieces over the lip, and a piece left at the lip or flicked aside is a cut waiting to happen.",
+  "setup": "Station table; heights from the table top. x points forward from the line through the two arm bases, y to the robot's left of the midpoint between them; arm bases at y +30.5 cm and y -30.5 cm. (1) Dustpan: the pan of an OXO Good Grips Compact Dustpan & Brush Set (item 1334280; black plastic, 186 mm wide, 137 mm deep, 40 mm high at the back), lying flat with its lip toward the pieces: the lip's edge along x 27.0 cm, centred on y 0, its back wall toward the robot. (2) Brush: the set's brush, standing on its bristles to the right of the pan, the middle of its 140 mm head at x 20.0 cm, y -19.0 cm, the head along y and the handle pointing to the robot's right (-y). (3) The broken glass: eight pieces of 3 mm clear acrylic (stand-ins for the glass, cut as rectangles), lying flat: A 32 x 18 mm at x 31.2, y +3.4 cm, turned +20 deg; B 26 x 14 mm at x 33.0, y -1.2 cm, turned -35 deg; C 18 x 12 mm at x 34.8, y +5.0 cm, turned +60 deg; D 22 x 16 mm at x 35.6, y +0.6 cm, turned +5 deg; E 15 x 10 mm at x 32.2, y -4.8 cm, turned +80 deg; F 28 x 12 mm at x 37.2, y -3.0 cm, turned -60 deg; G 12 x 9 mm at x 30.0, y -1.0 cm, turned +45 deg; H 20 x 11 mm at x 38.0, y +2.8 cm, turned -15 deg (centres; the turn is about the vertical from the piece's long side along x). Nothing else on the table. Both grippers start open at the arms' ready pose.",
+  "scoring": "A piece is in the pan when its centre is inside the pan's walls (between the side walls and between the lip's edge and the back wall) and at most 12 mm above the pan's floor. The pan is flat when it is within 5 degrees of level with its lip's edge within 4 mm of the table. Let go: both grippers 30 mm or more from the pan and from the brush. Still: over the last second no piece and no corner of the pan moved more than 2 mm. 1.0: all 8 pieces in the pan, the pan flat, let go on each of the last 20 steps (1 s), and still. 0.5: 6 or 7 in the pan, or all 8 but the pan not yet set down flat, let go or still. 0.25: 4 or 5 in the pan. 0: fewer. 0 for the whole run if at any moment a gripper touches a piece (in simulation: a finger zone, half the finger gap plus 8 mm round the pads, reaches a piece) or a piece falls off the table. Possible scores: 0, 0.25, 0.5, 1.0. Success: 1.0 held for 1 s. In a real trial: count the pieces in the pan from a top-down photo; touching is judged on the video.",
+  "run_limit": "800 steps (40 s at 20 Hz)",
+  "reset_notes": "Lay the eight acrylic pieces back on their outlines (a printed layout sheet, or tape marks, under the table's edge-referenced coordinates), stand the brush on its spot and lay the pan with its lip on the line x 27.0 cm. Nothing is consumed.",
+  "fidelity": "Dustpan size from the maker; its section (2.5 mm floor, 18 mm lip ramp, 22 mm sides, 40 mm back), the brush (140 x 28 mm head, 22 mm bristles, 70 mm handle) and all masses estimated. The bristles are one rigid block: they do not bend, so the demo lifts the brush 3 mm over the lip. The pieces are acrylic rectangles, the stand-ins used in real trials (a real glass also leaves splinters). Touching is judged from conservative finger zones.",
+  "scores": "pending"
+}
