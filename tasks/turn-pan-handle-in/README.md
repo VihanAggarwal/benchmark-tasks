@@ -1,4 +1,4 @@
-# Turn a frying pan's handle in on a cooktop, clear of the edge and of the hot elements
+# Turn a frying pan's handle in on a cooktop, clear of the edge and the hot elements
 
 A frying pan with hot oil in it sits on the front left element of a four-element electric cooktop, its handle
 sticking out past the cooktop's left edge. A toddler is about to come into the kitchen. The robot has to turn the pan
