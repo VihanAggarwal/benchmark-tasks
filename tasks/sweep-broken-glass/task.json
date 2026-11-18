@@ -17,5 +17,6 @@
   "run_limit": "800 steps (40 s at 20 Hz)",
   "reset_notes": "Lay the eight acrylic pieces back on their outlines (a printed layout sheet, or tape marks, under the table's edge-referenced coordinates), stand the brush on its spot and lay the pan with its lip on the line x 27.0 cm. Nothing is consumed.",
   "fidelity": "Dustpan size from the maker; its section (2.5 mm floor, 18 mm lip ramp, 22 mm sides, 40 mm back), the brush (140 x 28 mm head, 22 mm bristles, 70 mm handle) and all masses estimated. The bristles are one rigid block: they do not bend, so the demo lifts the brush 3 mm over the lip. The pieces are acrylic rectangles, the stand-ins used in real trials (a real glass also leaves splinters). Touching is judged from conservative finger zones.",
-  "scores": "pending"
+  "scores": "Dream-1 run: 0.0 (800 steps, the run limit); demo: 1.0 (scripted, success at step 606)",
+  "media": "M-GF3SQP"
 }
