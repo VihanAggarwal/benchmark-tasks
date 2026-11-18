@@ -97,4 +97,14 @@ inspect-robots run --embodiment yam_arena --policy dream -E task=$PWD/task.py -E
 `TASK_TRACE=<file>` writes one JSON line per control step. No seeds: the layout is fixed (`object_jitter=0`).
 Offline tests (no simulator): `PYTHONPATH=<yam-isaac-lab-arena checkout> python3 -m unittest discover -s tests -v`.
 
-Runtime per trial: RESULTS_PENDING
+Runtime per trial on an L40S: about 70 s for the scripted demo (15 s to start Isaac Sim, then 421 steps to
+success) and about 3 minutes for a Dream-1 run of 800 steps (the policy is queried over the network each step).
+
+## Results
+
+| Run | Score | Steps |
+|---|---|---|
+| Scripted demo | 1.0 (handle at -54.0 degrees, pan 12.7 mm off centre, flat, let go) | 421 (success) |
+| Dream-1 | 0.0 (the pan was not moved; its handle still past the edge) | 800 (the limit) |
+
+The demo scored the same, to the hundredth of a degree and millimetre, on two runs.
