@@ -289,17 +289,23 @@ def lid_plan(release: bool = True) -> list[Waypoint]:
     return plan
 
 
+AWAY_S = 1.5  # the left arm's move away after the lid, before the right arm comes down to the knob
+
+
 def _left_away() -> list[Waypoint]:
-    away = np.array([0.20, 0.32, L.TOP + 0.20])
-    return [_w(1.5, away, OPEN, "away", LID_YAW), _w(2.5, away, OPEN, "hold", LID_YAW)]
+    away = np.array([0.18, 0.36, L.TOP + 0.20])  # back over the lid's old spot, clear of the right arm at the knob
+    return [_w(AWAY_S, away, OPEN, "away", LID_YAW), _w(2.5, away, OPEN, "hold", LID_YAW)]
 
 
 def knob_plan(wait: float = 0.0) -> list[Waypoint]:
     above = knob_tcp(0.05)
     a0 = STROKES[0][0]
-    plan = [_w(2.5, above, KNOB_OPEN, "over the front burner's knob", _y(a0))]
-    if wait > 2.5:
-        plan.append(_w(wait - 2.5, above, KNOB_OPEN, "wait for the lid to go on", _y(a0)))
+    plan = []
+    if wait > 0.0:  # wait out of the left arm's way, on the robot's right, until the lid is on and the left arm clear
+        hold = np.array([0.22, -0.14, L.TOP + 0.18])
+        plan += [_w(2.5, hold, KNOB_OPEN, "wait on the right for the lid to go on", _y(a0)),
+                 _w(max(0.5, wait - 2.5), hold, KNOB_OPEN, "wait on the right for the lid to go on", _y(a0))]
+    plan.append(_w(2.0, above, KNOB_OPEN, "over the front burner's knob", _y(a0)))
     for i, (a, b) in enumerate(STROKES):
         if i > 0:  # turn the open hand back half a turn, in two quarters (one half-turn step is ambiguous)
             prev = STROKES[i - 1][1]
@@ -327,7 +333,8 @@ def plans(variant: str = "") -> dict:
         return {"right": knob_plan()}
     if variant == "lid_only":
         return {"left": lid_plan() + _left_away()}
-    return {"left": lid_plan() + _left_away(), "right": knob_plan(wait=sum(w.duration for w in lid_plan()))}
+    lid_s = sum(w.duration for w in lid_plan())
+    return {"left": lid_plan() + _left_away(), "right": knob_plan(wait=lid_s + AWAY_S)}
 
 
 def demo():

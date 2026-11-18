@@ -89,7 +89,8 @@ lid is on (the order fire services give).
 - Left, the lid: a straight-down grip on its knob, lifted 150 mm clear and carried to the pan's left side with its
   skirt 12 mm above the pan's rim, slid across onto the pan (the lid goes on from the side, the arm never over the
   flames) and lowered onto the rim; let go, up and away.
-- Right, the knob: a straight-down grip with the pads opened only 40 mm, so they stay clear of the pan, closing either
+- Right, the knob: it waits out of the left arm's way on the robot's right until the lid is on and the left arm has
+  moved off, then a straight-down grip with the pads opened only 40 mm, so they stay clear of the pan, closing either
   side of the front burner's knob's grip bar. The wrist turns counterclockwise (seen from above) 220 degrees, takes
   the knob from 8 most of the way to 0, lets go, turns the open hand back half a turn and takes the bar again for the
   last 10 degrees and 8 degrees on into the stop at 0. Then away.
@@ -118,16 +119,16 @@ inspect-robots run --embodiment yam_arena --policy dream -E task=$PWD/task.py -E
 `TASK_TRACE=<file>` writes one JSON line per control step. No seeds: the layout is fixed (`object_jitter=0`).
 Offline tests (no simulator): `PYTHONPATH=<yam-isaac-lab-arena checkout> python3 -m unittest discover -s tests -v`.
 
-Runtime per trial on an L40S: about 60 s for the scripted demo (15 s to start Isaac Sim, then 618 steps to success).
+Runtime per trial on an L40S: about 60 s for the scripted demo (15 s to start Isaac Sim, then 688 steps to success).
 A Dream-1 run stops at once (see below).
 
 ## Results
 
 | Run | Score | Steps |
 |---|---|---|
-| Scripted demo | 1.0 (lid 1.6 mm off centre, 0.8 mm from seated, level; burner knob at 0; rear knob at 0; pan unmoved; glass untouched) | 618 (success) |
+| Scripted demo | 1.0 (lid 1.5 mm off centre, 0.8 mm from seated, level; burner knob at 0; rear knob at 0; pan unmoved; glass untouched) | 688 (success) |
 | Dream-1 | refused the instruction before acting (no recording) | 32 (the run errored) |
-| `knob_only` | 0.25 | 491 |
+| `knob_only` | 0.25 | 481 |
 | `lid_only` | 0.5 | 408 |
 
 The demo scored the same, to the hundredth of a millimetre, on two runs.
