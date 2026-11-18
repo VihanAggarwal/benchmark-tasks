@@ -45,7 +45,8 @@ pan's friction on the glass (0.3).
 | Pan at the start | base centre on the left front element; handle pointing +y, its end 149 mm past the cooktop's left edge |
 | Safe handle directions (pan centred) | -70 to -37 degrees (0 = straight back, +x; negative = to the robot's right) |
 
-The pan is one loose rigid body (mechkit compound): base, 20 flat wall segments, a 3 mm layer of oil and the handle;
+The pan is one loose rigid body (mechkit compound): base, 20 flat wall segments, a 3 mm layer of oil and the handle
+(in a real trial the oil is a 3 mm amber silicone disc of the same 92 g bonded to the pan's floor: no liquid);
 its centre of mass sits 48 mm toward the handle, as on a real pan. The cooktop (glass and the four rings) and the
 saucepan are fixed. Nothing is moved or latched by code.
 
