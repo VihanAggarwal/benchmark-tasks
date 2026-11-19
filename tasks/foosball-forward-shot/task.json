@@ -15,5 +15,6 @@
   "run_limit": "600 steps (30 s at 20 Hz)",
   "reset_notes": "Ball back on its mark; the forward rod slid to centre with its players hanging straight down; every other rod in its stop. Nothing is consumed.",
   "fidelity": "Rods, players and ball are rigid; the forward rod slides on a joint with 3 N of bushing friction and turns freely about it. Table size from the maker; the rods' positions and spacing, the players' shape, the goal mouth, the ball and the frictions are estimates. The playfield and rods are plain colours, with no printed graphics.",
-  "scores": "Dream-1 run: 0.0 (600 steps, the run limit); demo: 1.0 (scripted, success at step 273)"
+  "scores": "Dream-1 run: 0.0 (600 steps, the run limit); demo: 1.0 (scripted, success at step 273)",
+  "media": "M-HRUSR8"
 }
