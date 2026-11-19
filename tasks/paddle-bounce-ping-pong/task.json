@@ -1,0 +1,20 @@
+{
+  "title": "Bounce a ping-pong ball on a table tennis paddle ten times in a row, 10 to 25 cm high",
+  "category": "Societal relatability",
+  "keywords": [
+    "table tennis",
+    "ping-pong",
+    "bouncing",
+    "rhythm",
+    "dynamic control",
+    "bimanual"
+  ],
+  "instruction": "Pick up the paddle, drop the ping-pong ball onto it from no more than 15 cm above the face, and keep it bouncing on the red face ten times in a row, each bounce 10 to 25 cm high.",
+  "context": "Bouncing a ball on a paddle is the warm-up every table tennis player does and a familiar party challenge. It takes a steady rhythm: each tap has to meet the falling ball with the face level and moving gently upward. Held still, the paddle lets the bounces die away; a tilt of a degree or two at a tap sends the ball sideways, and a few such taps walk it off the edge.",
+  "setup": "Positions in cm from the midpoint between the arm bases: x forward, y to the robot's left; heights above the table. (1) A blue polyurethane foam block, 11 x 11 x 10 cm, centred at x 36.0, y 0. (2) A table tennis paddle (standard recreational bat: wooden blade about 158 x 150 mm, 6 mm thick with red and black rubbers, a flared wooden handle about 100 x 26 x 22 mm; 180 g) lying flat on the block, red face up, the blade centred on the block and the handle pointing to the robot's right (handle centre at y -11.5). (3) A white 40 mm ping-pong ball (ITTF 40+ plastic, 2.7 g) resting in a dark grey plastic cup, 30 x 30 mm outside, 22 mm tall, 3 mm walls (a stand-in for an egg cup), centred at x 30.0, y +15.0. Both grippers open at the ready pose.",
+  "scoring": "A face touch: the ball lands on and leaves the red face (its centre over the blade) while the paddle is held up, its blade at least 15 mm above the block. A bounce: a flight from one face touch to the next in which the ball's bottom rises 100 to 250 mm above the face and no gripper comes within 30 mm of the ball. A run starts at the first face touch after a gripper lets go of the ball. It ends at a flight outside 100 to 250 mm (that touch can start the next run), a gripper coming within 30 mm of the ball, or the ball touching anything else (the table, the block, the blade's edge, the handle); after those two, only a new drop from a gripper starts a run. The drop: from the moment the ball is let go until it first lands on the face, its bottom must never be more than 150 mm above the face (so lowering the paddle after letting go counts too), or the bounces after that drop do not count (a still paddle under a 150 mm drop gives at most one bounce over 100 mm). 1.0: 10 bounces in a row. 0.5: 6 to 9. 0.25: 4 or 5. 0: fewer (a still paddle, under the highest allowed drop or after the highest allowed bounce, gives at most 3). The best run in the trial counts. Success: 1.0 held for 1 s. Real trial: two synchronized 60 fps videos. A side-on camera level with the paddle, a steel ruler fixed upright behind it marked every 10 mm (100, 150 and 250 mm in red), reads each touch and the ball's height above the face at that moment's face position. A phone overhead, looking straight down, shows the ball's centre over the blade at each touch and the grippers' clearance from the ball. Both are read frame by frame.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "The paddle back on the block in its starting place, the ball back in its cup. Nothing is consumed.",
+  "fidelity": "Rigid paddle (the blade drawn round, 154 mm across) and a solid rigid ball (a real one is a thin shell, so its spin differs). The ball's bounce off the rubber (restitution 0.85), the rubber's and handle's friction and the paddle's mass split are estimates. Air drag and spin effects in flight are not modelled. The foam block and cup are fixed in place.",
+  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 256)"
+}
