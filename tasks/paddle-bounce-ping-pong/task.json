@@ -16,5 +16,6 @@
   "run_limit": "1,200 steps (60 s at 20 Hz)",
   "reset_notes": "The paddle back on the block in its starting place, the ball back in its cup. Nothing is consumed.",
   "fidelity": "Rigid paddle (the blade drawn round, 154 mm across) and a solid rigid ball (a real one is a thin shell, so its spin differs). The ball's bounce off the rubber (restitution 0.85), the rubber's and handle's friction and the paddle's mass split are estimates. Air drag and spin effects in flight are not modelled. The foam block and cup are fixed in place.",
-  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 256)"
+  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 256)",
+  "media": "M-MBXRXN"
 }
