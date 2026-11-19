@@ -15,5 +15,6 @@
   "run_limit": "800 steps (40 s at 20 Hz)",
   "reset_notes": "Ball back in the plunger lane against the plunger; both flippers down; buttons up. Nothing is consumed.",
   "fidelity": "Rigid cabinet, flippers and steel ball. The machine's playfield layout, flipper size and travel, plunger travel and spring (300 N/m), button travel and the frictions are estimates for the named type. One rule stands in for each flipper's switch and coil: a button pressed past 3.5 mm drives its flipper up through a stiff spring.",
-  "scores": "Dream-1 run: 0.0 (800 steps, the run limit); demo: 1.0 (scripted, success at step 215)"
+  "scores": "Dream-1 run: 0.0 (800 steps, the run limit); demo: 1.0 (scripted, success at step 215)",
+  "media": "M-7FEJDZ"
 }
