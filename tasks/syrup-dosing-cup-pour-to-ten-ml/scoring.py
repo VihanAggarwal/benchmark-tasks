@@ -8,11 +8,11 @@ control step (20 Hz), fed from ``task.success()``:
      bottle's pose (``surface_height``).
   2. Syrup leaves over the lip's lowest point when the surface stands above it, by the depth ``h`` of the surface
      over that point. The rate is a laminar film over the lip, ``Q = g w h^3 / (3 nu)`` (w the chord of the lip circle
-     that the surface cuts, nu = 1.15e-4 m^2/s for a 150 mPa s, 1.30 g/mL syrup), but never more than what the neck
+     that the surface cuts, nu = 1.15e-4 m^2/s for a 150 mPa s, 1.31 g/mL syrup), but never more than what the neck
      passes, ``Q_CAP`` = 3.0 mL/s. No delay and no tail are written in: the stream stops because tilting the bottle
      back drops the surface under the lip, and because syrup leaving lowers the surface.
   3. The stream falls straight down from the lip's lowest point. It goes into the cup if that point is over the cup's
-     opening (4 mm inside its walls) and above its rim, and the cup is tilted 30 degrees or less; otherwise it is
+     opening (4 mm inside its round wall) and above its rim, and the cup is tilted 30 degrees or less; otherwise it is
      spilled onto the table or the scale. A cup tilted more than 45 degrees pours out what it holds.
   4. The time the stream spends falling into the cup while the cup is not held up and level (its lowest point under
      20 mm over the pan, or tilted over 5 degrees) is counted as 'unread' seconds, with its volume: the label's rule
@@ -125,13 +125,13 @@ def pour_rate(v: float, origin, axis) -> tuple[float, float, float]:
 
 
 def stream_in_cup(point, cup_origin, cup_rot) -> bool:
-    """A stream falling from ``point`` lands in the cup: over its opening (inside the walls by CATCH_MARGIN), above
-    its rim, the cup tilted CATCH_TILT_DEG or less."""
+    """A stream falling from ``point`` lands in the round cup: over its opening (within CATCH_MARGIN of the circle
+    inside its wall panels, so 14 mm of its axis), above its rim, the cup tilted CATCH_TILT_DEG or less."""
     if float(cup_rot[2, 2]) < math.cos(math.radians(L.CATCH_TILT_DEG)):
         return False
     local = cup_rot.T @ (np.asarray(point, dtype=float) - np.asarray(cup_origin, dtype=float))
-    half = L.CUP_INNER_HALF - L.CATCH_MARGIN
-    return bool(abs(local[0]) <= half and abs(local[1]) <= half and local[2] >= L.CUP_H)
+    radius = L.CUP_INNER_HALF - L.CATCH_MARGIN
+    return bool(math.hypot(float(local[0]), float(local[1])) <= radius and local[2] >= L.CUP_H)
 
 
 # -- rule predicates ------------------------------------------------------------------------------------------------------

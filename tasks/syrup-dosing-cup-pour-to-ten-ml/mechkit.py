@@ -63,6 +63,16 @@ Version 2 adds (each still to be verified on the GPU by tasks/_mechkit2-smoke; s
   condition fires; released at reset), :func:`bond` (a FixedJoint between two bodies that breaks above a force or
   torque, can be released or armed at run time, and is re-armed at every reset) and :func:`set_targets` (joint drive
   targets for rule-based detents; SI units: m or rad).
+- per-shape opacity (look only, added in this task's copy): ``box(..., opacity=0.35)``, ``cylinder(...,
+  opacity=...)`` and ``open_box(..., opacity=...)`` set Isaac Lab's ``PreviewSurfaceCfg.opacity``; the default 1.0
+  changes nothing (same shapes, same looks). A look below 1.0 also gets :func:`_see_through`: the opacity written
+  straight on the shader (threshold 0, roughness 0.15) and RTX Real-Time's fractional cut-out opacity turned on.
+- hidden shapes (look only, added in this task's copy): ``box(..., hidden=True)`` (and ``cylinder``, ``open_box``)
+  keeps the collider and its materials but draws nothing: the spawner calls ``UsdGeom.Imageable.MakeInvisible()`` on
+  the shape and prints one line per assembly, ``mechkit: <assembly> N shapes drawn invisible (colliders kept)``.
+  ``MECHKIT_HIDE_MODE=purpose`` (default ``visibility``) also gives each hidden shape the ``guide`` purpose, which
+  renderers skip (a fallback, only if a GPU shot shows the hidden shapes drawn). The visual material is still bound,
+  so a renderer that ignores the hide draws the shape's own colour.
 
 Environment: ``MECHKIT_TRACE=<file>`` appends one JSON line per control step (every assembly's joints and pose, and
 the step's info); ``MECHKIT_PRINT_EVERY=<n>`` prints a one-line summary to stderr every n steps (``configure()``
@@ -203,6 +213,106 @@ def _try_tuple(value):
         return value
 
 
+def _opacity(value, what: str) -> float:  # opacity of a look: 0 (invisible) excluded .. 1 (solid, the default)
+    opacity = _number(value, f"{what} opacity")
+    if not 0.0 < opacity <= 1.0:  # opacity outside (0, 1]
+        raise ValueError(f"{what} opacity must be in (0, 1], got {value!r}")
+    return opacity
+
+
+def _with_opacity(shape, opacity, what: str):  # the shape itself at opacity 1.0, else a copy with that opacity
+    opacity = _opacity(opacity, what)
+    return shape if opacity == 1.0 else Shape(**{**shape.__dict__, "opacity": opacity})
+
+
+def _hidden(value, what: str) -> bool:  # a hidden look: a real bool only (a truthy string is a mistake)
+    if not isinstance(value, bool):
+        raise ValueError(f"{what} hidden must be True or False, got {value!r}")
+    return value
+
+
+def _with_look(shape, opacity, hidden, what: str):  # the shape itself for the default look, else a copy
+    shape = _with_opacity(shape, opacity, what)
+    return shape if not _hidden(hidden, what) else Shape(**{**shape.__dict__, "hidden": True})
+
+
+HIDE_MODES = ("visibility", "purpose")
+
+
+def hide_mode() -> str:
+    """``MECHKIT_HIDE_MODE``: ``visibility`` (the default: MakeInvisible) or ``purpose`` (MakeInvisible and the
+    ``guide`` purpose too); anything else reads as the default."""
+    mode = os.environ.get("MECHKIT_HIDE_MODE", "visibility").strip().lower()
+    return mode if mode in HIDE_MODES else "visibility"
+
+
+def _hide(geom, mode: str | None = None) -> bool:
+    """Draw the shape ``geom`` (a UsdGeom.Gprim) not at all; its collider and materials are kept (sim only). Never
+    raises: a failure is printed and the shape draws in its own colour (its visual material is bound regardless).
+    True when the hide was written."""
+    try:
+        from pxr import UsdGeom
+
+        UsdGeom.Imageable(geom).MakeInvisible()
+        if (mode or hide_mode()) == "purpose":
+            UsdGeom.Imageable(geom).CreatePurposeAttr(UsdGeom.Tokens.guide)
+        return True
+    except Exception as exc:  # noqa: BLE001  (a look must never stop the scene from building)
+        print(f"mechkit: hide not written: {exc!r}", file=sys.stderr)
+        return False
+
+
+SEE_THROUGH_ROUGHNESS = 0.15  # a see-through look is glossy clear plastic, not the 0.5 of a solid look
+FRACTIONAL_CUTOUT_SETTING = "/rtx/raytracing/fractionalCutoutOpacity"  # RTX Real-Time: off by default
+
+
+def _see_through(stage, material_path: str, opacity: float, roughness: float = SEE_THROUGH_ROUGHNESS) -> int:
+    """Make the look at ``material_path`` see-through on every path this file can reach (sim only, look only).
+
+    1. Writes ``inputs:opacity``, ``inputs:opacityThreshold`` 0 (fractional opacity, not a cut-out mask) and a glossy
+       ``inputs:roughness`` straight onto every UsdPreviewSurface shader under the material, so the value reaches the
+       shader whichever fields this Isaac Lab's PreviewSurfaceCfg copies (a dataclass accepts an unknown attribute set
+       after construction and may never write it).
+    2. Turns on RTX Real-Time's fractional cut-out opacity (``FRACTIONAL_CUTOUT_SETTING``, off by default), without
+       which a fractional opacity is thresholded and the surface draws solid or not at all.
+
+    Never raises: a failure is printed and the look stays as PreviewSurfaceCfg made it. Prints one line (shaders
+    written, the setting before and after, and ``fractional cut-out opacity ON``, ``OFF`` or ``UNKNOWN``, read back
+    after setting it) so a GPU log shows what the renderer was given: only ON means a fractional opacity is drawn as
+    such (OFF or UNKNOWN: thresholded, the walls draw solid or not at all). Returns the shader count."""
+    written, before, after = 0, "?", "?"
+    try:
+        from pxr import Sdf, Usd, UsdShade
+
+        root = stage.GetPrimAtPath(material_path)
+        for prim in Usd.PrimRange(root) if root and root.IsValid() else ():
+            if not prim.IsA(UsdShade.Shader):
+                continue
+            shader = UsdShade.Shader(prim)
+            ident = shader.GetIdAttr().Get() if shader.GetIdAttr() else None
+            if ident not in (None, "UsdPreviewSurface"):
+                continue
+            shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(float(opacity))
+            shader.CreateInput("opacityThreshold", Sdf.ValueTypeNames.Float).Set(0.0)
+            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(float(roughness))
+            written += 1
+    except Exception as exc:  # noqa: BLE001  (a look must never stop the scene from building)
+        print(f"mechkit: see-through shader at {material_path} not written: {exc!r}", file=sys.stderr)
+    try:
+        import carb
+
+        settings = carb.settings.get_settings()
+        before = settings.get(FRACTIONAL_CUTOUT_SETTING)
+        settings.set_bool(FRACTIONAL_CUTOUT_SETTING, True)
+        after = settings.get(FRACTIONAL_CUTOUT_SETTING)
+    except Exception as exc:  # noqa: BLE001
+        print(f"mechkit: {FRACTIONAL_CUTOUT_SETTING} not set: {exc!r}", file=sys.stderr)
+    state = "UNKNOWN" if after is None or isinstance(after, str) else ("ON" if bool(after) else "OFF")
+    print(f"mechkit: see-through look {material_path}: opacity {opacity}, {written} shader(s) written, "
+          f"{FRACTIONAL_CUTOUT_SETTING} {before} -> {after}; fractional cut-out opacity {state}", file=sys.stderr)
+    return written
+
+
 def quat_to_matrix(quat_xyzw) -> np.ndarray:
     """3x3 rotation of a unit quaternion (x, y, z, w)."""
     q = np.asarray(quat_xyzw, dtype=float).reshape(4)
@@ -329,7 +439,9 @@ class Shape:
     (``radius``, ``height`` along ``axis`` "X", "Y" or "Z"). ``center`` is in the assembly's base frame with every
     joint at 0. ``color`` (sRGB) defaults to its link's, then the assembly's. ``quat`` (x, y, z, w; None: not turned)
     turns the shape about its own centre, in the base frame (a box's edges, a cylinder's axis). Build with
-    :func:`box` / :func:`cylinder`."""
+    :func:`box` / :func:`cylinder`.
+    ``opacity`` (0 < opacity <= 1, default 1.0: solid) is the look's opacity only; colliders are unchanged.
+    ``hidden`` (default False) draws the shape not at all; its collider is unchanged."""
 
     kind: str
     center: tuple[float, float, float]
@@ -339,6 +451,8 @@ class Shape:
     axis: str = "Z"
     color: tuple[float, float, float] | None = None
     quat: tuple[float, float, float, float] | None = None
+    opacity: float = 1.0
+    hidden: bool = False
 
     def check(self, what: str = "shape") -> None:
         if self.kind not in ("box", "cylinder"):
@@ -353,6 +467,8 @@ class Shape:
             if self.axis not in _AXIS_INDEX:
                 raise ValueError(f"{what}: cylinder axis must be 'X', 'Y' or 'Z', got {self.axis!r}")
         _rgb(self.color, f"{what} color")
+        _opacity(self.opacity, what)
+        _hidden(self.hidden, what)
         if self.quat is not None:
             q = _vec(self.quat, 4, f"{what} quat")
             if not abs(math.sqrt(sum(v * v for v in q)) - 1.0) < 1e-6:
@@ -389,28 +505,33 @@ class Shape:
         return self.radius * np.sqrt(np.clip(1.0 - a * a, 0.0, 1.0)) + self.height / 2.0 * np.abs(a)
 
 
-def box(center, size, color=None, *, quat=None, ypr=None) -> Shape:
+def box(center, size, color=None, *, quat=None, ypr=None, opacity: float = 1.0, hidden: bool = False) -> Shape:
     """A box collider: ``center`` and ``size`` (x, y, z edge lengths) in metres, base frame at rest. ``quat``
     (x, y, z, w) or ``ypr`` (yaw, pitch, roll, rad: :func:`quat_from_ypr`) turns it about its centre: a chamfer, a
     ramp, a key turned 15 deg (tasks/din-rail-mount partkit ``_box`` writes the same with ``AddOrientOp``)."""
     s = Shape("box", _vec3(center, "box center"), _vec3(size, "box size"), color=_rgb(color, "box color"),
               quat=_orientation(quat, ypr, "box"))
+    s = _with_look(s, opacity, hidden, "box")  # opacity 1.0, not hidden: the same shape as before
     s.check("box")
     return s
 
 
-def cylinder(center, radius: float, height: float, axis: str = "Z", color=None, *, quat=None, ypr=None) -> Shape:
+def cylinder(center, radius: float, height: float, axis: str = "Z", color=None, *, quat=None, ypr=None,
+             opacity: float = 1.0, hidden: bool = False) -> Shape:
     """A cylinder collider along ``axis`` ("X", "Y" or "Z": a lying cylinder is fine here), optionally turned
     about its centre by ``quat`` / ``ypr`` (a disc tilted on a slope, a pin at an angle)."""
     s = Shape("cylinder", _vec3(center, "cylinder center"), radius=float(radius), height=float(height),
               axis=str(axis).upper(), color=_rgb(color, "cylinder color"), quat=_orientation(quat, ypr, "cylinder"))
+    s = _with_look(s, opacity, hidden, "cylinder")  # opacity 1.0, not hidden: the same shape as before
     s.check("cylinder")
     return s
 
 
-def open_box(center, outer, wall: float, floor: float | None = None, color=None) -> tuple[Shape, ...]:
+def open_box(center, outer, wall: float, floor: float | None = None, color=None, *,
+             opacity: float = 1.0, hidden: bool = False) -> tuple[Shape, ...]:
     """An open-top box (a tote, a tray with a rim, a bin): a floor and four walls filling the outer box ``outer``
-    (x, y, z) centred on ``center``. ``wall`` is the wall thickness, ``floor`` the floor's (default ``wall``)."""
+    (x, y, z) centred on ``center``. ``wall`` is the wall thickness, ``floor`` the floor's (default ``wall``).
+    ``opacity`` (default 1.0) is every face's look opacity (a clear cup or tote); ``hidden`` draws none of them."""
     cx, cy, cz = _vec3(center, "open_box center")
     sx, sy, sz = _vec3(outer, "open_box outer")
     t = _number(wall, "open_box wall", positive=True)
@@ -420,11 +541,11 @@ def open_box(center, outer, wall: float, floor: float | None = None, color=None)
     h = sz - f
     zc = cz - sz / 2 + f + h / 2
     return (
-        box((cx, cy, cz - sz / 2 + f / 2), (sx, sy, f), color),
-        box((cx + sx / 2 - t / 2, cy, zc), (t, sy, h), color),
-        box((cx - sx / 2 + t / 2, cy, zc), (t, sy, h), color),
-        box((cx, cy + sy / 2 - t / 2, zc), (sx - 2 * t, t, h), color),
-        box((cx, cy - sy / 2 + t / 2, zc), (sx - 2 * t, t, h), color),
+        box((cx, cy, cz - sz / 2 + f / 2), (sx, sy, f), color, opacity=opacity, hidden=hidden),
+        box((cx + sx / 2 - t / 2, cy, zc), (t, sy, h), color, opacity=opacity, hidden=hidden),
+        box((cx - sx / 2 + t / 2, cy, zc), (t, sy, h), color, opacity=opacity, hidden=hidden),
+        box((cx, cy + sy / 2 - t / 2, zc), (sx - 2 * t, t, h), color, opacity=opacity, hidden=hidden),
+        box((cx, cy - sy / 2 + t / 2, zc), (sx - 2 * t, t, h), color, opacity=opacity, hidden=hidden),
     )
 
 
@@ -1060,6 +1181,8 @@ def usd_plan(spec: Assembly, root: str) -> dict:
                 "height": float(s.height),
                 "axis": s.axis,
                 "color": spec.body_color(body, s),
+                "opacity": float(s.opacity),  # look opacity (1.0: solid, PreviewSurfaceCfg's default)
+                "hidden": bool(s.hidden),  # drawn not at all (the collider is kept)
                 # USD orient op (w, x, y, z), written between translate and scale; None: no orient op
                 "orient_wxyz": None if s.quat is None else (s.quat[3], s.quat[0], s.quat[1], s.quat[2]),
             })
@@ -1176,12 +1299,18 @@ def _author(stage, prim_path: str, spec: Assembly, translation=None, orientation
     material.func(physics_material, material)
     looks: dict[tuple, str] = {}
 
-    def look(color) -> str:
+    def look(color, opacity: float = 1.0) -> str:
         key = tuple(float(c) for c in color)
+        if opacity < 1.0:  # a see-through look gets its own material, keyed by colour and opacity
+            key = (*key, float(opacity))
         if key not in looks:
             path = f"{prim_path}/Looks/color_{len(looks)}"
-            cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=linear_rgb(key), roughness=LOOK_ROUGHNESS)
+            cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=linear_rgb(key[:3]), roughness=LOOK_ROUGHNESS)
+            if opacity < 1.0:  # at 1.0 the config stays exactly as before (PreviewSurfaceCfg's default opacity)
+                cfg.opacity = float(opacity)
             cfg.func(path, cfg)
+            if opacity < 1.0:  # and again straight on the shader, with the renderer's fractional opacity turned on
+                _see_through(stage, path, float(opacity))
             looks[key] = path
         return looks[key]
 
@@ -1196,6 +1325,7 @@ def _author(stage, prim_path: str, spec: Assembly, translation=None, orientation
             physx.rigid_body(prim, plan)
         prims[body["name"]] = prim
 
+    hidden = 0
     for s in plan["shapes"]:
         # Op order translate, orient, scale (tasks/din-rail-mount partkit _box): the unit cube is scaled to the box,
         # turned about its own centre, then placed.
@@ -1217,8 +1347,13 @@ def _author(stage, prim_path: str, spec: Assembly, translation=None, orientation
         prim = geom.GetPrim()
         UsdPhysics.CollisionAPI.Apply(prim)
         physx.collider(prim, plan)
+        if s.get("hidden", False):  # drawn not at all; the collider above and both materials below are kept
+            hidden += int(_hide(geom))
         bind_physics_material(s["path"], physics_material, stage=stage)
-        bind_visual_material(s["path"], look(s["color"]), stage=stage)
+        bind_visual_material(s["path"], look(s["color"], s.get("opacity", 1.0)), stage=stage)
+    if hidden:
+        print(f"mechkit: {spec.name} {hidden} shapes drawn invisible (colliders kept), hide mode {hide_mode()}",
+              file=sys.stderr, flush=True)
 
     if plan["joints"]:
         UsdGeom.Xform.Define(stage, f"{prim_path}/joints")

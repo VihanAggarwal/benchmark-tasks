@@ -24,7 +24,9 @@ CUP_GRIP_Z = 0.019  # the cup's wall point the pads grip, over its bottom (mid-h
 CUP_TIP_OFF = 0.0  # the pad-tip point this far toward the hand's side of the cup's axis
 THETA_HOLD = math.radians(76.0)  # the bottle's tilt for the pour
 Z_LIP = 0.135  # the lip's lowest point over the table at the pour (cup rim at 0.097 over it)
-CUP_LIFT = 0.045  # the cup is held this far over the pan while the syrup goes in
+CUP_LIFT = 0.032  # the cup is held this far over the pan while the syrup goes in (12 mm over the 20 mm 'held up')
+CUP_HOLD_DY = 0.006  # ... and this far toward +y, away from the bottle, so the top camera sees the syrup clear of the
+#   bottle's neck; the lip's lowest point then falls 6 mm from the cup's axis, 8 mm inside the 14 mm catch circle
 
 
 def rx(a: float) -> np.ndarray:
