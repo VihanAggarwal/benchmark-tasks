@@ -1,0 +1,19 @@
+{
+  "title": "Stamp RECEIVED inside the box on a delivery note with a self-inking stamp",
+  "category": "Societal relatability",
+  "keywords": [
+    "office",
+    "self-inking stamp",
+    "paperwork",
+    "alignment",
+    "spring travel"
+  ],
+  "instruction": "Stamp RECEIVED inside the box marked on the delivery note, the right way up, then put the stamp back where it stood.",
+  "context": "Date and RECEIVED stamps are a fixture of offices, post rooms and receiving desks. A self-inking stamp prints only when its handle is pushed all the way down against its spring, which flips the die off its ink pad onto the paper: pressed short it prints nothing, set down crooked or off the mark it prints askew or across the box's lines, and turned round it prints upside down.",
+  "setup": "Station table; x forward from the line through the arm bases, y to the robot's left of their midpoint (bases at y +/-30.5 cm), heights from the table top. (1) A Trodat Printy 4912 self-inking stamp (black plastic; die 47 x 18 mm reading RECEIVED; outer handle 66 x 30 mm, 58 mm tall, 65 g; the handle slides 22 mm down over the base against a spring of about 12 N at the bottom), standing upright on its spot at x 20.0, y -18.0 cm, its long side along y and its white front label toward the robot. (2) A delivery note: a white A4 sheet (297 x 210 mm) glued to a 3 mm card backing so it lies flat (60 g), long side along x, centred at x 32.0, y 0 cm, printed with a heading and lines of text and, near its lower right corner, a black-lined box labelled GOODS RECEIVED whose inside is 30 mm (along x) by 60 mm (along y), centred at x 25.0, y -6.0 cm. Both grippers open at the ready pose.",
+  "scoring": "Print: the handle within 2 mm of the bottom of its 22 mm travel while the stamp's base lies flat on the sheet (within 1.5 mm of its surface, tilted 3 degrees or less) for 0.2 s; the handle must rise above 10 mm of travel before another press can print. Imprint: the die's 47 x 18 mm footprint at that moment. 1.0: exactly one print, the whole imprint inside the box, within 5 degrees of square to it and the right way up (RECEIVED reads left to right for the robot), the sheet moved 5 mm or less during the press, and the stamp standing upright (5 degrees) within 30 mm of its spot with both grippers 30 mm or more from it and the stamp still (2 mm) for the last 1 s. 0.75: all that, but the stamp not back on its spot or still held. 0.5: one print the right way up, at least half of it inside the box, within 15 degrees of square. 0.25: one print anywhere on the sheet, the right way up. 0: no print, two or more prints, a print upside down, and the whole run if the stamp tips past 45 degrees at any moment (dropped). Possible scores: 0, 0.25, 0.5, 0.75, 1.0. Success: 1.0 held for 1 s. Real trial: the inked imprint against the box on a photo of the sheet; pencil marks at the sheet's corners and the stamp's spot for movement; the press and the stamp's return from the trial video.",
+  "run_limit": "1,000 steps (50 s at 20 Hz)",
+  "reset_notes": "Stamp upright back on its spot, front label toward the robot. A fresh printed delivery note (plain A4 copy paper, printed from the same file) glued to the card backing, or the same card with a new printed sheet clipped flat on it. The stamp's ink pad lasts thousands of prints.",
+  "fidelity": "The handle is a sprung slider on the base (12 N at the bottom, travel 22 mm: estimates); the die's flip and the ink are a rule: the print is recorded where the die's footprint lies when the handle bottoms out with the base flat on the sheet, and a red imprint is then drawn there and held on the sheet. Die size from the maker; the outer sizes, mass and frictions are estimates.",
+  "scores": "Dream-1 run: 0.0 (1,000 steps, the run limit); demo: 1.0 (scripted, success at step 422)"
+}
