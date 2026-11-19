@@ -4,9 +4,9 @@
 frying pan (a loose mechkit compound: base, flared wall, oil and handle as one rigid body) and both arms through
 rigstate. Plan views are world x, y.
 
-    HANDLE_SAFE  every point of the handle's centre line (rim to end, 12 points) is inside the cooktop's outline seen
-                 from above, AND at least 20 mm outside the ring of each hot element (the left rear, just switched
-                 off and still hot, and the right front, lit under a saucepan)
+    HANDLE_SAFE  every point of the handle (its centre line and both side edges, rim to end, 36 points) is inside the
+                 cooktop's outline seen from above, AND at least 20 mm outside the ring of each hot element (the left
+                 rear, just switched off and still hot, and the right front, lit under a saucepan)
     CENTRED      the pan's base centre within 30 mm (in plan) of its element's centre
     FLAT         the pan within 3 deg of level with its base within 4 mm of the glass
     CLEAR        rigstate.released with the pan's own distance: both grippers' finger zones 30 mm or more from the
@@ -33,8 +33,8 @@ import layout as L
 import rigstate
 
 PAN = "pan"
-HANDLE_PTS = L.handle_points()
-TRACK = np.vstack([np.zeros(3), HANDLE_PTS[-1]])  # base centre, handle end (pan frame)
+HANDLE_PTS = L.handle_outline()
+TRACK = np.vstack([np.zeros(3), L.handle_points()[-1]])  # base centre, handle end (pan frame)
 
 
 def tilt_deg(rot: np.ndarray) -> float:
@@ -45,7 +45,7 @@ def tilt_deg(rot: np.ndarray) -> float:
 class Reading:
     origin: np.ndarray  # the pan's base centre (world)
     rot: np.ndarray
-    handle_xy: np.ndarray  # (12, 2) the handle's centre line seen from above
+    handle_xy: np.ndarray  # (36, 2) the handle (centre line and side edges) seen from above
     track: np.ndarray  # (2, 3)
 
 

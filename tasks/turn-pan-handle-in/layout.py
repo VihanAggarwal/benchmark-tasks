@@ -79,8 +79,8 @@ PAN_ELEMENT = "left_front"
 PAN_START_YAW = math.radians(90.0)  # the handle points to the robot's left, out past the cooktop's left edge
 
 # -- scoring -----------------------------------------------------------------------------------------------------------
-HANDLE_SAMPLES = 12  # points along the handle's centre line, rim to end
-EDGE_MARGIN = 0.0  # m: no part of the handle's centre line past any edge of the cooktop (seen from above)
+HANDLE_SAMPLES = 12  # points along the handle, rim to end (on its centre line and on both side edges)
+EDGE_MARGIN = 0.0  # m: no part of the handle past any edge of the cooktop (seen from above)
 CENTRE_OK = 0.030  # m: the pan's base centre within 30 mm of its element's centre at the end (on its burner)
 CENTRE_FAIL = 0.060  # m: more than 60 mm at any moment: slid off its burner (latched 0)
 TILT_FAIL_DEG = 10.0  # the pan tilted past 10 deg at any moment: hot oil spilled (latched 0)
@@ -120,13 +120,21 @@ def handle_points() -> np.ndarray:
     return handle_root()[None, :] + s[:, None] * handle_dir()[None, :]
 
 
+def handle_outline() -> np.ndarray:
+    """(3 * HANDLE_SAMPLES, 3) points along the handle's centre line and its two side edges (its full 24 mm width),
+    pan frame: the points the safety rules check."""
+    c = handle_points()
+    off = np.array([0.0, HANDLE_W / 2, 0.0])
+    return np.vstack([c, c + off, c - off])
+
+
 def grip_point() -> np.ndarray:
     return handle_root() + GRIP_FROM_RIM * handle_dir()
 
 
 def safe_plan(points_xy: np.ndarray) -> tuple[bool, bool, str | None]:
-    """For the handle's centre-line points seen from above (world x, y): (inside the cooktop's outline, clear of
-    every hot element, the first problem found)."""
+    """For the handle's points seen from above (world x, y; its centre line and both side edges): (inside the
+    cooktop's outline, clear of every hot element, the first problem found)."""
     x0, x1, y0, y1 = cook_bounds()
     pts = np.asarray(points_xy, dtype=float)
     inside = bool(np.all((pts[:, 0] >= x0 + EDGE_MARGIN) & (pts[:, 0] <= x1 - EDGE_MARGIN)
@@ -144,10 +152,10 @@ def safe_plan(points_xy: np.ndarray) -> tuple[bool, bool, str | None]:
 
 
 def handle_world_xy(origin_xy, yaw: float) -> np.ndarray:
-    """The handle's centre-line points seen from above for a flat pan whose base centre is at ``origin_xy`` and
-    whose handle points at ``yaw`` (world)."""
+    """The handle's points (centre line and both side edges) seen from above for a flat pan whose base centre is at
+    ``origin_xy`` and whose handle points at ``yaw`` (world)."""
     c, s = math.cos(yaw), math.sin(yaw)
-    p = handle_points()
+    p = handle_outline()
     return np.stack([origin_xy[0] + c * p[:, 0] - s * p[:, 1], origin_xy[1] + s * p[:, 0] + c * p[:, 1]], axis=1)
 
 

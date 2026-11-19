@@ -143,7 +143,7 @@ def score(objects) -> float:
 # closing across the handle (the grip's yaw equals the handle's direction). Gripped, the TCP follows the circle the
 # grip point makes about the pan's base centre while the yaw turns with it, so the pan turns in place on its burner:
 # from +90 deg (out past the left edge) clockwise through the back (+0, over the hot element only in passing) to
-# -54 deg, the middle of the safe sector (-70 to -37 deg). Then let go and lift away.
+# -54 deg, the middle of the safe sector (-68 to -41 deg, the handle's full width counted). Then let go and lift away.
 # The pads' grip on the sleeve gives a little in yaw while the pan's base drags round on the glass, so the pan lags
 # the hand by about 6 deg and pivots on the grip, its centre moving about 25 mm (measured in the simulator, the same
 # every run: the layout is fixed). The plan turns 6 deg further, then slides the pan straight back by that much,

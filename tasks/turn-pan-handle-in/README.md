@@ -5,7 +5,8 @@ sticking out past the cooktop's left edge. A toddler is about to come into the k
 so its handle no longer sticks out, keep the pan on its burner, and let go. The left rear element was just switched
 off and still glows; the right front element is lit under a saucepan. Turned straight back, the handle would rest
 over the hot left rear element; turned toward the middle, over the lit right front one. Only diagonally back to the
-right (37 to 70 degrees right of straight back) is it inside the cooktop and clear of both.
+right (41 to 68 degrees right of straight back, the handle's full width counted) is it inside the cooktop and
+clear of both.
 
 ## Why it matters
 
@@ -43,7 +44,7 @@ pan's friction on the glass (0.3).
 | Right front element (lit, saucepan) | centre x 0.220, y -0.195, 9 in |
 | Right rear element (off) | centre x 0.450, y -0.200, 6 in |
 | Pan at the start | base centre on the left front element; handle pointing +y, its end 149 mm past the cooktop's left edge |
-| Safe handle directions (pan centred) | -70 to -37 degrees (0 = straight back, +x; negative = to the robot's right) |
+| Safe handle directions (pan centred) | -68 to -41 degrees (0 = straight back, +x; negative = to the robot's right) |
 
 The pan is one loose rigid body (mechkit compound): base, 20 flat wall segments, a 3 mm layer of oil and the handle
 (in a real trial the oil is a 3 mm amber silicone disc of the same 92 g bonded to the pan's floor: no liquid);
@@ -54,8 +55,8 @@ saucepan are fixed. Nothing is moved or latched by code.
 
 Read at the end, except the failures, which are read every step.
 
-- Safe handle: seen from above, every point of the handle's centre line (rim to end) inside the cooktop's outline and
-  at least 20 mm outside the rings of the two hot elements.
+- Safe handle: seen from above, every part of the handle (its full 24 mm width, rim to end) inside the cooktop's
+  outline and at least 20 mm outside the rings of the two hot elements.
 - 1.0: safe handle, pan centred (base centre within 30 mm of the element's), flat (3 degrees, on the glass), both
   grippers 30 mm or more from it for the last 20 steps, and still (2 mm over the last second).
 - 0.5: safe handle and flat, but still held, 30 to 60 mm off centre, or not yet still.
@@ -65,6 +66,28 @@ Read at the end, except the failures, which are read every step.
 Partial credit stops at 0.5 on purpose: a handle past the edge or over a hot element is the hazard itself, so no
 state with it earns anything. In a real trial: a top-down photo with the cooktop's outline, the two hot rings and
 their 20 mm borders marked, and a mark at the element's centre; tilt and lift from the side video.
+
+## Real trials (no cooktop, no heat, no liquid)
+
+The real Frigidaire cooktop costs about US$1,000, so real trials use a cold stand-in that keeps what the task depends
+on: the cooktop's outline, where its hot elements are, and a smooth glass surface for the pan to slide on.
+
+- Surface: a Quartet Infinity G3624B black tempered-glass dry-erase board (frameless, 36 x 24 in = 914 x 610 mm,
+  about US$100; https://quartet.com/p/dry-erase-boards/glass-boards/infinity-glass-dry-erase-boards-black-surface),
+  laid flat on the counter. The pan's aluminium base slides on its tempered glass as on the cooktop's glass-ceramic:
+  both are smooth, hard glass, and the simulation uses a static friction of 0.30 (est.). Check before trials: with
+  the board tilted up, the empty pan (disc fitted) starts to slide at 15 to 19 degrees (static friction 0.27 to
+  0.34); if it does not, clean the glass and the pan's base.
+- Outline: the cooktop's 778 x 543 mm outline, centred on the board (front edge at x 0.070, middle on y 0), marked
+  with 6 mm white vinyl tape laid outside the line. The glass beyond it (68 mm at each side, 33 mm front and back)
+  does not count: the handle must stay inside the tape.
+- Elements: vinyl rings at the centres in the geometry table (6 in = 152 mm, 9 in = 229 mm across). The two hot ones
+  (left rear, right front) are solid red discs with a thin red line drawn 20 mm outside each, the scorer's clearance;
+  the other two are 6 mm white ring outlines. The left front ring carries the pan; mark its centre.
+- Pan: the same Tramontina pan with a 3 mm amber silicone disc (92 g) bonded to its floor in place of the oil, so
+  nothing can spill onto the rig. The saucepan stands cold and empty on the right front disc.
+
+Scoring is then read from a top-down photo against the tape and the rings, and tilt and lift from the side video.
 
 ## The demo (left arm)
 

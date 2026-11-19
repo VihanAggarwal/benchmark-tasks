@@ -84,9 +84,22 @@ class TestGeometry(unittest.TestCase):
     def test_safe_sector(self):
         ys = L.safe_yaws(1.0)
         main = [d for d in ys if -80.0 <= d <= -30.0]
-        self.assertEqual(min(main), -70.0)
-        self.assertEqual(max(main), -37.0)
-        self.assertGreaterEqual(len(main), 30)
+        self.assertEqual(min(main), -68.0)
+        self.assertEqual(max(main), -41.0)
+        self.assertGreaterEqual(len(main), 25)
+
+
+class TestHandleWidth(unittest.TestCase):
+    def test_a_handle_edge_past_the_cooktop_is_unsafe(self):
+        # at -69 deg the handle's centre line clears the rules, but one of its side edges does not
+        centre_only = L.handle_points()
+        x, y, _ = L.pan_start()
+        c, s_ = math.cos(math.radians(-69.0)), math.sin(math.radians(-69.0))
+        xy = np.stack([x + c * centre_only[:, 0] - s_ * centre_only[:, 1],
+                       y + s_ * centre_only[:, 0] + c * centre_only[:, 1]], axis=1)
+        self.assertTrue(all(L.safe_plan(xy)[:2]))  # the centre line alone would pass
+        full = L.handle_world_xy((x, y), math.radians(-69.0))
+        self.assertFalse(all(L.safe_plan(full)[:2]))  # the full width does not
 
 
 class TestScoring(unittest.TestCase):
@@ -225,7 +238,7 @@ class TestMeta(unittest.TestCase):
         for k in ("title", "category", "instruction", "setup", "scoring", "run_limit", "fidelity", "scores"):
             self.assertTrue(meta.get(k), k)
         self.assertEqual(meta["instruction"], T.INSTRUCTION)
-        self.assertIn("37 and 70 degrees", meta["scoring"])
+        self.assertIn("41 and 68 degrees", meta["scoring"])
 
 
 if __name__ == "__main__":
