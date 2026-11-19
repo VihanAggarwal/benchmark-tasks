@@ -168,7 +168,12 @@ SLID_DIST = 0.100  # latched zero: the bin slid more than 100 mm
 TIP_DEG = 30.0  # latched zero: the bin tipped more than 30 degrees
 TOUCH = 0.001  # a finger zone within 1 mm of the lid counts as touching it
 CAN_TOUCH = 0.001  # the can within 1 mm of the lid (before it is in the bin) counts as hitting it
-FORCED_DEG = 10.0  # the lid 10 degrees above the angle the rod holds it at, and still rising: lifted by something else
+# Pushed (latched, scores 0): the lid moved by anything but the pedal linkage. LINK = the lower of the lid angle the rod
+# holds and the one the pedal's angle gives through the linkage (GPU 17 Nov demo: the lid within 0.12 degrees of it).
+FORCED_DEG = 5.0  # the lid 5 degrees above LINK and rising (lifted), or 5 above the rod's angle and not closing ...
+HELD_STEPS = 3  # ... on 3 steps running (held open: a free lid falls 1.1 degrees a step or faster, layout + task.py)
+RISE_DEG = 0.3  # rising: the lid up more than 0.3 degrees in one step; not closing: down less than that
+CAN_LIFT_DEG = 2.0  # the can within 1 mm of the lid while the lid rises 2 degrees above LINK: the can lifts it
 STILL_WINDOW_S = 1.0
 STILL_MOVE = 0.005  # visible motion: 5 mm and 5 degrees over 1 s
 STILL_TURN_DEG = 5.0

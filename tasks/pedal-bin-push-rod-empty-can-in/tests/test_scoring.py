@@ -247,6 +247,29 @@ class Geometry(unittest.TestCase):
         self.assertGreater(-T.LET_GO * 2, T.HOLD_GAP)  # lets go of it
         self.assertLess(-T.LET_GO * 2, rigstate.FULL_GAP)
 
+    def test_can_grip_force_and_height(self):
+        """Revision 19 Nov (the reviewer's note on crushing the empty can): about 5 N a finger (the sim's finger drive,
+        5000 N/m times how far short of its target the finger stops), and the pads on the top band of the wall, not
+        its middle."""
+        short = (2 * L.CAN_R - (-2 * T.CAN_GRIP)) / 2
+        self.assertAlmostEqual(5000.0 * short, 5.0, places=6)
+        # where the pad faces (FINGER_HALF_WIDTH either side of the approach line, the tips 13 mm past the TCP) cross
+        # the can's side line under the TCP, with the left grip's lean
+        a = T.tiltgrip.rotation(0.0, T.PITCH_L)[:, 2]
+        w = np.array([-a[2], 0.0, a[0]]) if abs(a[1]) < 1e-9 else None
+        self.assertIsNotNone(w)
+        zs = []
+        for s_ in np.linspace(0.0, rigstate.FINGER_LEN, 400):
+            for t in np.linspace(-rigstate.FINGER_HALF_WIDTH, rigstate.FINGER_HALF_WIDTH, 81):
+                pt = T.PAD_TIP * a - s_ * a + t * w
+                if abs(pt[0]) < 0.0005:
+                    zs.append(T.GRIP_Z + pt[2])
+        lo, hi = min(zs), max(zs)
+        self.assertGreater(lo, L.CAN_H / 2 + 0.015)  # well above the wall's middle (57.5 mm)
+        self.assertLess(hi, L.CAN_H)  # under the can's top
+        self.assertAlmostEqual(lo, 0.0744, delta=0.002)
+        self.assertAlmostEqual(hi, 0.1056, delta=0.002)
+
 
 class Tiers(unittest.TestCase):
     def test_full_score(self):
@@ -292,14 +315,20 @@ class Tiers(unittest.TestCase):
         self.assertEqual(run(scene(bin_quat=q)).details["bin_kept"], False)
 
     def test_possible_scores(self):
-        self.assertEqual({S.tier(*bits) for bits in np.ndindex(2, 2, 2, 2, 2, 2)}, {0.0, 0.25, 0.5, 1.0})
+        self.assertEqual({S.tier(*bits) for bits in np.ndindex(2, 2, 2, 2, 2, 2)}, {0.0, 0.5, 1.0})
+
+    def test_pushed_always_scores_zero(self):
+        """Revision 19 Nov: no tier rewards a lid moved by anything but the pedal (the old 0.25 tier is gone)."""
+        for bits in np.ndindex(2, 2, 2, 2, 2):
+            latched, in_bin, settled, kept, clean = (bool(b) for b in bits)
+            self.assertEqual(S.tier(latched, in_bin, True, settled, kept, clean), 0.0, bits)
 
     def test_tier_function_table(self):
         self.assertEqual(S.tier(False, True, False, True, True, True), 1.0)
         self.assertEqual(S.tier(False, True, False, False, True, True), 0.5)
         self.assertEqual(S.tier(False, True, False, True, False, True), 0.5)
         self.assertEqual(S.tier(False, True, False, True, True, False), 0.5)
-        self.assertEqual(S.tier(False, True, True, True, True, True), 0.25)
+        self.assertEqual(S.tier(False, True, True, True, True, True), 0.0)
         self.assertEqual(S.tier(False, False, False, True, True, True), 0.0)
         self.assertEqual(S.tier(True, True, False, True, True, True), 0.0)
 
@@ -309,7 +338,7 @@ class Latches(unittest.TestCase):
         tr = S.Tracker()
         tr.update(scene(can=CAN_START), on_lid(0.001))
         self.assertTrue(tr.pushed)
-        self.assertEqual(run(scene(), tracker=tr).score, 0.25)
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)
 
     def test_fingers_20_mm_over_the_lid_do_not(self):
         tr = S.Tracker()
@@ -334,7 +363,78 @@ class Latches(unittest.TestCase):
         for deg in np.linspace(0.0, 30.0, 10):
             tr.update(scene(can=CAN_START, lid=math.radians(deg), rise=0.0), FAR)
         self.assertTrue(tr.pushed)
-        self.assertEqual(tr.why["pushed"], "lid lifted above the rod's angle")
+        self.assertEqual(tr.why["pushed"], "lid lifted above what the pedal gives")
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)
+
+    def test_lid_lifted_6_degrees_over_the_pedal_latches_4_does_not(self):
+        """GPU run 1 (job 20261117T104005): the can and hand lifted the lid from 47.8 to 57.8 degrees with the pedal
+        fixed; the old 10-degree margin missed that by 0.1 degree. The margin is now 5 degrees."""
+        for extra, want in ((6.0, True), (4.0, False)):
+            tr = S.Tracker()
+            lever = T.lever_from_lid(math.radians(47.8))
+            base = math.degrees(L.lid_from_rod(L.rod_from_lever(lever)))
+            for deg in np.linspace(base, base + extra, 8):
+                rise = L.rod_from_lever(lever)
+                tr.update(scene(can=CAN_START, lever=lever, lid=math.radians(deg), rise=rise), FAR)
+            self.assertEqual(tr.pushed, want, extra)
+
+    def test_lid_held_open_after_the_pedal_is_let_go(self):
+        """Pedal pressed fully, then let go while something (a wrist, a forearm) keeps the lid up: the lid stays at
+        67 degrees with the rod and the pedal back down. A free lid would fall at 1.1 degrees a step or faster."""
+        tr = S.Tracker()
+        for _ in range(5):
+            tr.update(pedal_scene(L.LEVER_UPPER, can=CAN_START), FAR)
+        for i in range(L.HELD_STEPS + 1):
+            tr.update(scene(can=CAN_START, lid=math.radians(L.LID_OPEN_DEG - 0.1 * i), rise=0.0), FAR)
+        self.assertTrue(tr.pushed)
+        self.assertEqual(tr.why["pushed"], "lid held open above the rod's angle")
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)
+
+    def test_rod_pushed_up_by_hand_with_the_pedal_up(self):
+        """The rod raised in its slot by something other than the lever (the pedal stays up): the lid follows the rod
+        but is above what the pedal gives."""
+        tr = S.Tracker()
+        for rise in np.linspace(0.0, L.rod_from_lever(L.LEVER_UPPER), 12):
+            tr.update(scene(can=CAN_START, lever=0.0, lid=L.lid_from_rod(rise), rise=rise), FAR)
+        self.assertTrue(tr.pushed)
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)
+
+    def test_can_lifting_the_lid_3_degrees_latches(self):
+        """The carried can pushed up through a part-open lid: touching it while the lid rises 3 degrees above what the
+        pedal gives (under the 5-degree margin, but the can is on it)."""
+        lever = T.lever_from_lid(math.radians(40.0))
+        base = math.degrees(L.lid_from_rod(L.rod_from_lever(lever)))
+        tr = S.Tracker()
+        tr._can_lid_gap = lambda states, r: 0.0005  # the can held 0.5 mm from the lid (geometry tested elsewhere)
+        for deg in (base, base + 1.5, base + 3.0):
+            tr.update(scene(can=CAN_START, lever=lever, lid=math.radians(deg)), FAR)
+        self.assertTrue(tr.pushed)
+        self.assertEqual(tr.why["pushed"], "lid lifted by the can")
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)
+
+    def test_can_resting_on_a_closing_lid_is_not_pushed(self):
+        """The can touching the lid while the lid closes (falling) is a can hit (0.5 at most), not a lift."""
+        tr = S.Tracker()
+        tr._can_lid_gap = lambda states, r: 0.0
+        for lv in np.linspace(L.LEVER_UPPER, 0.0, 30):
+            tr.update(pedal_scene(lv, can=CAN_START), FAR)
+        self.assertFalse(tr.pushed)
+        self.assertFalse(tr.clean)
+
+    def test_the_can_cannot_hold_the_pedal_down(self):
+        """A can left on the pedal plate: 14 g is far under the 1.5 N the pedal needs even at its stop."""
+        self.assertLess(L.CAN_MASS * L.G, 0.2 * L.pedal_force(math.radians(L.LID_OPEN_DEG), L.LEVER_CG_TORQUE))
+
+    def test_tipping_the_bin_short_of_30_degrees_does_not_open_the_lid(self):
+        """The lid's centre of mass stays in front of the hinge when the bin is tipped back 30 degrees, so tipping
+        cannot swing it open (and any opening without the pedal would latch pushed anyway)."""
+        com = T.BIN_PART.center_of_mass("lid") - np.array([L.BIN_X, L.BIN_Y, L.TOP])
+        hinge = np.array([L.HINGE_X, 0.0, L.HINGE_Z])
+        d = com - hinge
+        tip = math.radians(L.TIP_DEG)
+        # tipped back (about +y through the back edge): the horizontal lever arm of the lid's weight about its hinge
+        arm_x = d[0] * math.cos(tip) + d[2] * math.sin(tip)
+        self.assertLess(arm_x, -0.02)
 
     def test_pedal_opening_never_latches(self):
         tr = S.Tracker()
@@ -405,8 +505,8 @@ class Stillness(unittest.TestCase):
     def test_lid_bouncing_in_the_last_second_is_half(self):
         tr = S.Tracker()
         for i in range(WIN + 2):
-            deg = 8.0 if i == WIN // 2 else 0.0
-            res = tr.update(scene(lid=math.radians(deg), rise=L.pin_rise(math.radians(deg)) + L.TOP_GAP), FAR)
+            lever = T.lever_from_lid(math.radians(8.0)) if i == WIN // 2 else 0.0
+            res = tr.update(pedal_scene(lever), FAR)
         self.assertEqual(res.score, 0.5)
 
 
@@ -466,7 +566,14 @@ class Exploits(unittest.TestCase):
         tr = S.Tracker()
         for deg in np.linspace(0.0, 70.0, 12):
             tr.update(scene(can=CAN_START, lid=math.radians(deg), rise=0.0), on_lid(0.0))
-        self.assertEqual(run(scene(), tracker=tr).score, 0.25)
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)  # revision 19 Nov: was 0.25
+
+    def test_lid_opened_by_hand_without_touching_the_finger_zone(self):
+        """The lid lifted by some other part of the arm (not the fingers): the lid-above-the-pedal rule alone."""
+        tr = S.Tracker()
+        for deg in np.linspace(0.0, 70.0, 12):
+            tr.update(scene(can=CAN_START, lid=math.radians(deg), rise=0.0), FAR)
+        self.assertEqual(run(scene(), tracker=tr).score, 0.0)
 
     def test_can_balanced_on_the_rim_is_not_in(self):
         z = L.TOP + L.RIM + L.CAN_H / 2
@@ -596,8 +703,9 @@ class Folder(unittest.TestCase):
         for needle in ("Brabantia NewIcon 3 L", "264 mm", "168 mm", "0.83 kg", "248 mm", "144 mm", "50 mm",
                        "67 degrees", "30 mm", "4.8 N", "1.5 N", "66 mm", "115 mm", "14 g", "x 260 mm, y 240 mm",
                        "x 330 mm", "10 mm", "72 mm", "4 mm", "5 degrees", "within 1 mm of the lid", "30 degrees", "100 mm",
-                       "1 s", "0.25", "0.5", "1.0"):
+                       "1 s", "0.5", "1.0", "Possible scores: 0, 0.5, 1.0"):
             self.assertIn(needle, text, needle)
+        self.assertNotIn("0.25", d["scoring"])
         self.assertEqual(d["run_limit"].split()[0], "800")
         self.assertIn("0.10 N m s/rad", d["fidelity"])
 
@@ -610,7 +718,7 @@ class Folder(unittest.TestCase):
         self.assertAlmostEqual(L.LID_DAMP, 0.10)
         self.assertEqual((L.IN_DEPTH, L.FLOOR_TOL, L.SHUT_DEG, L.KEPT_DIST, L.KEPT_TILT, L.SLID_DIST, L.TIP_DEG),
                          (0.010, 0.004, 5.0, 0.030, 5.0, 0.100, 30.0))
-        self.assertEqual((L.TOUCH, L.CAN_TOUCH, L.FORCED_DEG), (0.001, 0.001, 10.0))
+        self.assertEqual((L.TOUCH, L.CAN_TOUCH, L.FORCED_DEG, L.HELD_STEPS, L.CAN_LIFT_DEG), (0.001, 0.001, 5.0, 3, 2.0))
 
     def test_mechkit_files_are_the_kits(self):
         for n in ("mechkit.py", "rigstate.py"):

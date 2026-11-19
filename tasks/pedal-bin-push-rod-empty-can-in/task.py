@@ -232,10 +232,11 @@ def success(objects) -> bool:
 
 
 def score(objects) -> float:
-    """0 if the bin tipped over 30 degrees or slid over 100 mm, or the can is not in the bin; 0.25 in the bin but the
-    lid was pushed or lifted (a finger zone within 1 mm of it, or the lid above the rod's angle); 0.5 in the bin
-    otherwise but not all of shut and still, bin kept, can never within 1 mm of the lid; 1.0 all of them. The latest
-    scored step's score."""
+    """0 if the bin tipped over 30 degrees or slid over 100 mm, or the can is not in the bin, or the lid was moved by
+    anything but the pedal linkage (a finger zone within 1 mm of it; the lid rising over 5 degrees above what the rod
+    and pedal give, or held 5 degrees above the rod's angle, or lifted by the can); 0.5 in the bin, never pushed, but
+    not all of shut and still, bin kept, can never within 1 mm of the lid; 1.0 all of them. The latest scored step's
+    score."""
     return _TRACKER.last.score
 
 
@@ -247,17 +248,23 @@ def score(objects) -> float:
 PAD_TIP = 0.013
 OPEN = -0.04695  # 94 mm
 CLOSED = 0.0
-CAN_GRIP = -(2 * L.CAN_R - 0.006) / 2  # 60 mm commanded across the 66 mm can
+# 64 mm commanded across the 66 mm can: each finger 1 mm short of its target pushes 5000 N/m x 1 mm = 5 N (the sim's
+# finger drive), about the real grip a thin empty can takes without denting (README: the can). Revision 19 Nov: was
+# 60 mm (15 N a finger). 14 g needs well under 1 N of friction to hold.
+CAN_GRIP = -(2 * L.CAN_R - 0.002) / 2
 LET_GO = -(2 * L.CAN_R + 0.010) / 2  # 76 mm: wide enough to drop it, the fingers kept close to the can
 PITCH_L, PITCH_R = math.radians(60.0), math.radians(25.0)
 YAW_L = tiltgrip.tilted(0.0, PITCH_L)
 YAW_R = tiltgrip.tilted(0.0, PITCH_R)
 A_R = tiltgrip.rotation(0.0, PITCH_R)[:, 2]  # the right grip's approach axis
 
-GRIP_Z = 0.090  # the left TCP 90 mm over the table: the pads on the can's upper part (74 to 105 mm)
+# The left TCP 90 mm over the table. With the 60-degree lean the pads meet the can's side from 74 to 106 mm up: on a
+# real 330 ml can that is the top band of the straight wall, ending at the necked shoulder (about 103 mm up), where the
+# neck and the seamed top stiffen it; not the middle of the wall (57 mm up), which dents most easily.
+GRIP_Z = 0.090
 CARRY_Z = GRIP_Z + L.RIM + 0.015  # the can's bottom 15 mm over the rim
-# Over the opening, 32 mm in front of the axis (the can 6.6 mm inside the rim's inner edge): with the 60 mm grip's
-# finger zone (43 mm round the fingers) the zone clears the lid by 22 mm at 67 degrees, 5 mm at 60 and 1 mm at about
+# Over the opening, 32 mm in front of the axis (the can 6.6 mm inside the rim's inner edge): with the grip's
+# finger zone (fingers held open by the can, 66 mm) (43 mm round the fingers) the zone clears the lid by 22 mm at 67 degrees, 5 mm at 60 and 1 mm at about
 # 59; the can clears it by 33 mm at 67 degrees, 14 mm at 60.
 DROP = (L.BIN_X - 0.032, L.BIN_Y + 0.005)
 # Let go low: the can lowered 60 mm into the opening first (its bottom 45 mm under the rim, the fingers' lowest

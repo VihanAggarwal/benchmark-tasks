@@ -12,17 +12,20 @@ centre). The arms are read only for the lid-touch check (rigstate's finger zones
     SHUT        the lid within 5 degrees of closed on every step of the last second
     STILL       over the last second the bin and the can each moved under 5 mm and turned under 5 degrees
     BIN KEPT    the bin within 30 mm of where it started (3-D) and tilted under 5 degrees, at the last step
-    PUSHED      at any step a finger zone is within 1 mm of the lid, or the lid is more than 10 degrees above the
-                angle the rod holds it at and still rising (lifted by something other than the rod). A step whose
-                arms cannot be read does not latch it but restarts the 1 s windows (so it cannot be held at 1.0)
+    PUSHED      the lid moved by anything but the pedal linkage, at any step: (a) a finger zone within 1 mm of the
+                lid; (b) the lid rising while more than 5 degrees above LINK, the lower of the angle the rod holds it
+                at and the angle the pedal's own angle gives through the linkage (a hand on the lid, or on the rod);
+                (c) the lid more than 5 degrees above the rod's angle and not closing on 3 steps running (held open:
+                a free lid falls 1.1 degrees a step or faster); (d) the can within 1 mm of the lid while the lid rises
+                more than 2 degrees above LINK (the can lifts it). A step whose arms cannot be read does not latch it
+                but restarts the 1 s windows (so it cannot be held at 1.0)
     CAN HIT     at any step the can is within 1 mm of the lid
 
-    0      F1 latched, or the can not in the bin
-    0.25   in the bin, but the lid was pushed or lifted
+    0      F1 latched, or the can not in the bin, or the lid pushed (any of (a) to (d))
     0.5    in the bin, lid never pushed, but not all of: shut and still, bin kept, can never hit the lid
     1.0    in the bin, never pushed, shut and still, bin kept, can never hit the lid
 
-Possible scores: 0, 0.25, 0.5, 1.0.
+Possible scores: 0, 0.5, 1.0. No tier rewards a lid opened, lifted or held by anything but the pedal.
 """
 
 from __future__ import annotations
@@ -152,16 +155,25 @@ def rod_lid_deg(r: Reading) -> float:
     return math.degrees(L.lid_from_rod(r.rod_rise))
 
 
+def pedal_lid_deg(r: Reading) -> float:
+    """The lid angle (degrees) the pedal lever's own angle gives through the linkage (nose -> rod -> pin)."""
+    return math.degrees(L.lid_from_rod(L.rod_from_lever(math.radians(r.pedal_deg))))
+
+
+def link_deg(r: Reading) -> float:
+    """LINK: the highest the pedal linkage can hold the lid, the lower of the rod's and the pedal's angle. A rod pushed
+    up by a hand (pedal up) leaves the pedal's angle low, so the lid above it counts as lifted."""
+    return min(rod_lid_deg(r), pedal_lid_deg(r))
+
+
 def can_points(r: Reading) -> np.ndarray:
     """Points on the can's surface in the states' world frame (table top at L.TOP)."""
     return r.can_pos + np.array([0.0, 0.0, L.TOP]) + CAN_PTS @ r.can_rot.T
 
 
 def tier(latched: bool, in_bin: bool, pushed: bool, settled: bool, kept: bool, clean: bool) -> float:
-    if latched or not in_bin:
+    if latched or not in_bin or pushed:
         return 0.0
-    if pushed:
-        return 0.25
     return 1.0 if (settled and kept and clean) else 0.5
 
 
@@ -191,6 +203,7 @@ class Tracker:
         self.lid_max = 0.0
         self.can_lid_min = math.inf
         self.unread = 0
+        self.held_run = 0
 
     @property
     def latched(self) -> bool:
@@ -240,13 +253,23 @@ class Tracker:
         except Exception:  # noqa: BLE001
             return -math.inf
 
-    @staticmethod
-    def _forced(r: Reading, prev: Reading | None) -> bool:
-        """The lid more than 10 degrees above the angle the rod holds it at and still rising: lifted by something
-        else (a hand, the can)."""
+    def _forced(self, r: Reading, prev: Reading | None, can_touch: bool) -> str | None:
+        """Why the lid moved by something other than the pedal linkage this step, or None: (b) lifted above LINK,
+        (c) held open above the rod's angle, (d) lifted by the can. Needs the previous step's reading."""
         if prev is None:
-            return False
-        return bool(r.lid_deg > rod_lid_deg(r) + L.FORCED_DEG and r.lid_deg > prev.lid_deg + 0.3)
+            self.held_run = 0
+            return None
+        link = link_deg(r)
+        rising = r.lid_deg > prev.lid_deg + L.RISE_DEG
+        held = r.lid_deg > rod_lid_deg(r) + L.FORCED_DEG and r.lid_deg >= prev.lid_deg - L.RISE_DEG
+        self.held_run = self.held_run + 1 if held else 0
+        if rising and r.lid_deg > link + L.FORCED_DEG:
+            return "lid lifted above what the pedal gives"
+        if rising and can_touch and r.lid_deg > link + L.CAN_LIFT_DEG:
+            return "lid lifted by the can"
+        if self.held_run >= L.HELD_STEPS:
+            return "lid held open above the rod's angle"
+        return None
 
     def update(self, states, arms) -> Result:
         self.steps += 1
@@ -272,12 +295,12 @@ class Tracker:
             self.unread += 1
             self.hist.clear()
         touch = arms_ok and self._fingers_touch_lid(states, arms)
-        forced = self._forced(r, self.prev)
-        if self.latch["pushed"] is None and (touch or forced):
-            self.latch["pushed"] = step
-            self.why["pushed"] = "finger zone within 1 mm of the lid" if touch else "lid lifted above the rod's angle"
         gap = self._can_lid_gap(states, r)
         self.can_lid_min = min(self.can_lid_min, gap)
+        forced = self._forced(r, self.prev, gap <= L.CAN_TOUCH)
+        if self.latch["pushed"] is None and (touch or forced):
+            self.latch["pushed"] = step
+            self.why["pushed"] = "finger zone within 1 mm of the lid" if touch else forced
         if self.latch["can_hit"] is None and gap <= L.CAN_TOUCH:
             self.latch["can_hit"] = step
         self.lid_max = max(self.lid_max, r.lid_deg)
@@ -316,7 +339,8 @@ class Tracker:
             "pushed": self.pushed, "fingers_touch_lid_now": bool(touch), "arms_unreadable_steps": self.unread,
             "lid_deg": round(r.lid_deg, 2), "lid_max_deg": round(self.lid_max, 2),
             "pedal_deg": round(r.pedal_deg, 2), "rod_rise_mm": _mm(r.rod_rise),
-            "rod_lid_deg": round(rod_lid_deg(r), 2), "can_lid_min_mm": _mm(self.can_lid_min),
+            "rod_lid_deg": round(rod_lid_deg(r), 2), "pedal_lid_deg": round(pedal_lid_deg(r), 2),
+            "can_lid_min_mm": _mm(self.can_lid_min),
             "bin_drift_mm": _mm(bin_drift(r)), "bin_tilt_deg": round(bin_tilt(r), 2),
             "can_mm": [_mm(v) for v in r.can_pos], "can_high_below_rim_mm": _mm(rim_z(r) - r.can_high),
             "can_plan_mm": _mm(plan_dist(r)),
