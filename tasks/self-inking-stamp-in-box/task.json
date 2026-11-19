@@ -15,5 +15,6 @@
   "run_limit": "1,000 steps (50 s at 20 Hz)",
   "reset_notes": "Stamp upright back on its spot, front label toward the robot. A fresh printed delivery note (plain A4 copy paper, printed from the same file) glued to the card backing, or the same card with a new printed sheet clipped flat on it. The stamp's ink pad lasts thousands of prints.",
   "fidelity": "The handle is a sprung slider on the base (12 N at the bottom, travel 22 mm: estimates); the die's flip and the ink are a rule: the print is recorded where the die's footprint lies when the handle bottoms out with the base flat on the sheet, and a red imprint is then drawn there and held on the sheet. Die size from the maker; the outer sizes, mass and frictions are estimates.",
-  "scores": "Dream-1 run: 0.0 (1,000 steps, the run limit); demo: 1.0 (scripted, success at step 422)"
+  "scores": "Dream-1 run: 0.0 (1,000 steps, the run limit); demo: 1.0 (scripted, success at step 422)",
+  "media": "M-NCG4PV"
 }
