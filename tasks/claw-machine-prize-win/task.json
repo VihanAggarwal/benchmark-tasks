@@ -1,0 +1,19 @@
+{
+  "title": "Win a prize on a desktop claw machine: steer the claw with the joystick, then drop it",
+  "category": "Societal relatability",
+  "keywords": [
+    "claw machine",
+    "arcade",
+    "joystick",
+    "remote positioning",
+    "timing"
+  ],
+  "instruction": "Play the claw machine: steer the claw over a prize with the joystick, press the button to drop it, and win a prize into the chute. You have one credit; don't reach into the machine.",
+  "context": "Claw machines stand in arcades, malls and restaurants everywhere. Winning means placing a claw you don't hold: the joystick only chooses which way the claw travels, at a fixed speed, so the player has to judge where the claw is over the prize from outside the cabinet, let the stick go at the right moment in each direction, and press the drop button before the game's timer runs out.",
+  "setup": "Positions in cm from the midpoint between the arm bases: x forward, y to the robot's left; heights above the table. (1) A tabletop claw machine of the Contixo CM1 type (sold for about $50 to $70: one illuminated 360-degree joystick, a grab button, USB or battery powered, a side door for refilling prizes), clamped to the table: a 26 x 26 cm cabinet from x 33 to 59, centred on y 0, its pit floor 10 cm up with a low clear wall round it, four corner posts and a gantry housing at 42 to 45 cm; a 11 cm deep control deck, 7 cm high, in front of it (x 22 to 33). On the deck: an 8-way joystick with a red bat-top handle (24 mm across, 40 mm long, its pivot at x 26.0, y -6.5, the handle's middle 13.5 cm up; it springs to centre; tilted 8 degrees or more it closes that direction's switch) and a blue drop button (32 mm across) at x 26.0, y +6.5, pressing 5 mm (it fires at 3 mm). The prize chute is a 7 x 7 cm opening in the pit floor's front-left corner (x 35 to 42, y +4 to +11). (2) Three prizes, 50 mm cardboard boxes (30 g; red, blue, yellow) standing in the pit at x 50.0, y -5.0 (red), x 53.0, y +4.0 (blue) and x 45.0, y -1.0 (yellow). The machine's program, as simulated (the speed and timer are estimates; the real machine is used as sold, and the score doesn't depend on them): the claw starts over the chute, travels 50 mm/s in each direction whose switch is closed (diagonals too), and a 30 s timer starts at the stick's first move. The button (or the timer) drops the claw to just above the prizes' tops; it closes, holds a prize if its axis is within 12 mm of the prize's centre, rises, travels back over the chute and opens. One credit is loaded. Both grippers open at the ready pose.",
+  "scoring": "Won: a prize falls through the chute. Near: the claw closed with its axis within 25 mm of a prize's centre (read from an overhead video at the moment it closes). 1.0: won. 0.5: near, not won. 0.25: the claw was moved at least 50 mm from its start before it dropped. 0: anything else, and any trial in which a gripper reaches into the cabinet (above the pit floor, inside its walls). Success: 1.0 held for 1 s.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Prizes back on their spots, the claw back over the chute, a credit loaded.",
+  "fidelity": "Rigid machine (clamped; its sizes are estimates for the named type) and prize boxes. The machine's program is a rule: the joystick's switches drive the claw at 50 mm/s, the button starts the drop cycle, and the claw holds a prize if it closes within 12 mm of its centre (the claw's grip itself is not simulated: the held prize is carried under it and let go over the chute). The clear walls are drawn as a low lip so the cameras see in.",
+  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 430)"
+}
