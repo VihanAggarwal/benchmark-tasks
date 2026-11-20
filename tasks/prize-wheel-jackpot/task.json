@@ -15,5 +15,6 @@
   "run_limit": "1,200 steps (60 s at 20 Hz)",
   "reset_notes": "The wheel turned back to its start (pointer on the red segment, JACKPOT at 9 o'clock). Record the wheel's make and model with each set of trials.",
   "fidelity": "Rigid wheel and pegs on a frictionless axle with viscous drag (0.00117 N m s/rad, an estimate set so that a brisk flick gives a turn or two); the pointer's clicking on the pegs is not modelled (it is drawn clear of them), so the wheel slows only by its drag.",
-  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 237)"
+  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 237)",
+  "media": "M-MB8LWW"
 }
