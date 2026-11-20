@@ -17,8 +17,8 @@ things at once:
 ## Sources
 
 Battery tabletop air hockey games are about 50 to 75 cm long and 30 to 40 cm wide, with rails, a goal slot at each end,
-pucks of 38 to 50 mm and mallets of 50 to 60 mm (for example the Relaxdays 10022514: 56 x 31 cm, a 40 mm puck, 55 mm
-pushers). The simulated game is 600 x 320 mm with a 50 mm puck and a 60 mm mallet. The puck's speed and the mallet's rebound are estimates (task.json "fidelity"). The kicker
+pucks of 38 to 64 mm and mallets of 50 to 60 mm. Their sizes differ, so the real trial builds the simulated field on a
+larger air table (below) instead of naming one game. The simulated game is 600 x 320 mm with a 50 mm puck and a 60 mm mallet. The puck's speed and the mallet's rebound are estimates (task.json "fidelity"). The kicker
 stands in for a spring launcher (a person serving the puck). No third-party meshes: everything is built from boxes and
 cylinders in task.py.
 
@@ -51,10 +51,21 @@ leaves the kicker at 0.86 m/s and crosses the halfway line at 0.82 m/s.
 
 The halfway-line rule is the game's own and also rules out carrying the puck down the table to the goal.
 
-Real trial: a battery tabletop game of about this size (for example a Relaxdays 10022514, 56 x 31 cm; record its model
-and sizes), an overhead slow-motion video at 240 fps (a phone's slow-motion mode) with the halfway line and the goals
-marked, the same rules read from its frames, and a spring launcher (a sled on a rail drawn back 40 mm to a latch, released at 7 s by a hobby servo on a timer) whose spring is checked before each set
-of trials: the puck takes 0.22 to 0.25 s between two marks 200 mm apart.
+Real trial (built to the simulated sizes, so no bought game's own field is used):
+
+- **Field:** any powered tabletop air hockey game with a playing surface of at least 650 x 340 mm, blower on. Tape
+  15 x 20 mm HDPE strips onto it as the rails to make a 600 x 320 mm field with a 90 mm goal slot centred in each end
+  rail and a box behind each slot. Mark the halfway line and the puck's and mallet's start spots.
+- **Puck and mallet:** a 50 mm disc cut from 6 mm HDPE sheet with a hole saw (about 11 g); a 60 mm disc of 12 mm HDPE
+  with a 24 mm hardwood dowel 35 mm tall glued on its centre (about 45 g).
+- **Launcher:** a bridge across the far end carries a 150 mm MGN9 linear rail and an MGN9H carriage. The carriage holds
+  the 20 x 50 x 14 mm HDPE pusher 1 mm above the surface, 15 mm behind the puck. An extension spring of about 0.1 N/mm
+  pulls the carriage toward the robot; a rubber-faced stop ends its stroke after 40 mm. Drawn back, the carriage is held
+  by a 3 mm steel pin; an SG90 servo pulls the pin 7.0 s after a start button, timed by an Arduino Nano.
+- **Calibration** (before each set of trials and after every 10): five shots, filmed at 240 fps; the puck must take
+  0.22 to 0.25 s (53 to 60 frames) between two marks 200 mm apart on its line. Adjust the draw-back stop until all five
+  do.
+- **Reading:** an overhead slow-motion video at 240 fps (a phone's slow-motion mode), the same rules read from its frames.
 
 ## The demo (left arm)
 
