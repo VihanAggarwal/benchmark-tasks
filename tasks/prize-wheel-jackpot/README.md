@@ -21,8 +21,31 @@ different from moving a part to a target and holding it there.
 ## Sources
 
 Tabletop prize wheels of 8 to 12 inches with 12 segments, boundary pegs and a clicker pointer are sold widely for
-events and classrooms. The bearing's drag is an estimate (task.json "fidelity"), set so a brisk flick gives a turn or
-two. Real trials use the wheel as it comes. No third-party meshes: everything is built from boxes and cylinders in
+events and classrooms. Bought wheels differ in their clicker and bearing, which decide how far a flick carries, so the
+real trial uses a wheel built to the simulation instead:
+
+- **Wheel:** a 200 mm disc of 12 mm birch plywood with a 150 mm x 2 mm aluminium disc screwed to its back (about
+  320 g), 12 printed segments (JACKPOT gold), and a 10 mm square hardwood peg standing 20 mm out of the rim at each
+  boundary. It turns on an 8 mm steel axle in two 608 ball bearings in a plywood stand clamped to the table.
+- **No clicker:** the pointer hangs from the stand's top arm just clear of the pegs, as in the simulation.
+- **Drag:** a 20 x 10 mm N42 disc magnet on an adjusting screw faces the aluminium disc. This eddy-current brake gives
+  drag proportional to speed, the same kind of drag as the simulation (0.00117 N m s/rad).
+- **Build dimensions** (mm; x toward the robot, z up from the table; the wheel's centre at height 130):
+  - Base: 18 mm plywood, 200 (x) x 260 (y), clamped to the table with two G-clamps at its back edge.
+  - Two uprights: 18 mm plywood, 60 wide x 175 tall, screwed to the base 40 apart (one each side of the wheel), each with
+    a 22 mm hole 7 deep at height 130 holding a 608 bearing (22 x 8 x 7), pressed in.
+  - Axle: 8 mm silver-steel rod 80 long through both bearings, held by two 8 mm shaft collars outside the uprights.
+  - Wheel: the 200 mm plywood disc and the 150 mm aluminium disc are screwed together with four M3 screws on a 100 mm
+    circle and fixed to the axle by an 8 mm flanged shaft hub (M3 grub screw), centred between the uprights, the
+    plywood face toward the robot.
+  - Pointer: a 3 mm acrylic strip 15 wide hung from a top arm (18 mm plywood bridging the uprights at height 250), its
+    tip 3 mm in front of the rim at 12 o'clock and 5 mm clear of the pegs' path.
+  - Brake: the magnet glued to the end of an M6 screw running in a threaded insert in the rear upright's extension, its
+    face toward the aluminium disc at 60 mm from the axle, the gap adjustable from 1 to 10 mm (start at 4) and locked
+    with an M6 nut.
+- **Calibration and reset** (before each set of trials): spin the wheel by hand and check in 60 fps video that its
+  speed halves in 0.85 to 0.95 s, which is a coast of about 1.28 turns from 1 turn per second (the simulated wheel:
+  0.89 s). If not, move the magnet and check again, then lock the gap with its nut. Turn the wheel back to its start. No third-party meshes: everything is built from boxes and cylinders in
 task.py.
 
 ## Geometry (world, m; table top z 0.7475)
