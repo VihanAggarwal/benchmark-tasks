@@ -15,5 +15,6 @@
   "run_limit": "1,200 steps (60 s at 20 Hz)",
   "reset_notes": "Prizes back on their spots, the claw back over the chute, a credit loaded.",
   "fidelity": "Rigid machine (clamped; its sizes are estimates for the named type) and prize boxes. The machine's program is a rule: the joystick's switches drive the claw at 50 mm/s, the button starts the drop cycle, and the claw holds a prize if it closes within 12 mm of its centre (the claw's grip itself is not simulated: the held prize is carried under it and let go over the chute). The clear walls are drawn as a low lip so the cameras see in.",
-  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 430)"
+  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 430)",
+  "media": "M-TKQ2TX"
 }
