@@ -17,5 +17,6 @@
   "run_limit": "2,400 steps (2 minutes at 20 Hz)",
   "reset_notes": "Cuff emptied; the valve set a quarter turn open with its wing upright; the bulb back on the table at its starting place.",
   "fidelity": "Rigid bulb, drawn as two blocks on a 20 N spring and valve (a damped hinge). The air is a rule: a squeeze adds pressure in proportion to its stroke, less as the cuff fills; the valve leaks at an orifice's rate set by its opening and the pressure; the gauge's needle shows the result. The dial has ticks but no numerals, the tube is not modelled, the arm and cuff are fixed, and the volumes and flow are estimates.",
-  "scores": "Dream-1 run: 0.0 (2,400 steps, the run limit); demo: 1.0 (scripted, success at step 1,657)"
+  "scores": "Dream-1 run: 0.0 (2,400 steps, the run limit); demo: 1.0 (scripted, success at step 1,657)",
+  "media": "M-L7CSJK"
 }
