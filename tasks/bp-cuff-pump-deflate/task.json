@@ -1,0 +1,21 @@
+{
+  "title": "Pump a blood-pressure cuff to 180 mmHg, then let it down at 2 to 3 mmHg a second",
+  "category": "Impact on jobs",
+  "keywords": [
+    "nursing",
+    "medical assistant",
+    "blood pressure",
+    "sphygmomanometer",
+    "valve",
+    "rate control",
+    "bimanual"
+  ],
+  "instruction": "Take the inflation bulb, shut its valve, and pump the cuff up to between 170 and 200 mmHg on the gauge. Then open the valve just enough that the needle falls 2 to 3 mmHg each second, all the way down to 60, and then open it wide to empty the cuff.",
+  "context": "A manual blood pressure reading is only as good as its deflation: guidelines call for 2 to 3 mmHg a second, because a faster fall misses the true systolic and diastolic sounds and a slower one leaves the arm congested. Nurses and medical assistants do it many times a day with one hand on the bulb and a thumb on a small valve screw, opening it a little further as the pressure drops so that the needle keeps falling at the same pace.",
+  "setup": "Positions in cm from the midpoint between the arm bases: x forward, y to the robot's left; heights above the table. (1) An adult training arm (vinyl, life size), lying straight along y at x 50: upper arm 9 cm across from y -3.5 to +26.5, forearm and hand toward the robot's right, held to the table. (2) An adult blood-pressure cuff (nylon, hook-and-loop, bladder 12 x 22 cm) wrapped snugly round the upper arm, 14 cm wide, centred at y +13. (3) A large-dial clinic aneroid gauge (0 to 300 mmHg over 270 degrees, 90 mm white dial, black ticks every 10 mmHg and longer ones every 50, red needle) on the cuff's line, its dial facing the robot, centred at x 43.0, y +13, 12.5 cm up. (4) A calibrated digital pressure logger (0.1 mmHg resolution, 10 readings a second) on a T in the cuff's line, out of view, for scoring only. (5) The inflation bulb (latex, 100 x 60 x 55 mm, about 45 g; squeezing it flat takes about 20 N over a 20 mm stroke) lying on the table at x 30, y +10, its long axis along y and its tail toward the robot's right; a 30 cm latex tube (5 mm) runs slack from its far end to the cuff. On the tail, a chrome air-release valve with a flat-sided wing thumbscrew (18 mm across, 8 mm thick): turned counterclockwise (seen from the tail) it opens; it starts a quarter turn open, the wing upright. The cuff starts empty. Both grippers open at the ready pose.",
+  "scoring": "The pressure is taken from the digital logger's record (10 readings a second, 0.1 mmHg); the simulation uses the modelled pressure at every control step. Peak: the highest pressure reached at any time. Descent: from the moment the pressure is 2 mmHg below its peak (pumping higher starts it again) to its first fall through 60, cut into consecutive 1 s windows, plus one more window ending at the fall through 60. A window is on rate if the needle falls 1.5 to 3.5 mmHg in it (2 to 3 with the reading's tolerance) and gross if it falls less than 1 (a pause or a rise) or more than 5 (a dump). Emptied: below 20 mmHg within 10 s of passing 60. 1.0: peak 170 to 200, at least 90% of the windows on rate and none gross, emptied. 0.5: peak 160 to 220, at least 60% of the windows on rate and none falling more than 8 mmHg. 0.25: peak 160 to 220 otherwise. 0: anything else, including a peak over 220 (over-inflation is painful). Success: 1.0 held for 1 s.",
+  "run_limit": "2,400 steps (2 minutes at 20 Hz)",
+  "reset_notes": "Cuff emptied; the valve set a quarter turn open with its wing upright; the bulb back on the table at its starting place.",
+  "fidelity": "Rigid bulb, drawn as two blocks on a 20 N spring and valve (a damped hinge). The air is a rule: a squeeze adds pressure in proportion to its stroke, less as the cuff fills; the valve leaks at an orifice's rate set by its opening and the pressure; the gauge's needle shows the result. The dial has ticks but no numerals, the tube is not modelled, the arm and cuff are fixed, and the volumes and flow are estimates.",
+  "scores": "Dream-1 run: 0.0 (2,400 steps, the run limit); demo: 1.0 (scripted, success at step 1,657)"
+}
