@@ -15,5 +15,6 @@
   "run_limit": "600 steps (30 s at 20 Hz); the puck is sent 7 s in",
   "reset_notes": "Puck and mallet back to their marked spots, the launcher's sled drawn back to its latch and the servo timer reset; nothing is consumed.",
   "fidelity": "Isaac Sim rigid bodies. The air cushion is drawn as a nearly frictionless playfield (friction 0.02), so the puck slows from 0.85 to 0.78 m/s over the table. The mallet's rim gives the puck back 75% of its approach speed (est.); the rails and goal boxes are dead (no rebound), so a shot that misses the goal stops at the far end rail, and bank shots are not modelled. The puck's spin and the game's air flow are not modelled. Real trial: a battery tabletop air hockey game of about this size (for example a Relaxdays 10022514, 56 x 31 cm; record its model and its playfield, goal, puck and mallet sizes with the trials), its fan on. The kicker is a driven slider standing in for a launcher that can be built: a 50 mm wide sled on a straight rail at the far end, drawn back 40 mm against a compression spring to a fixed latch and released 7 s into the trial by a hobby servo on a timer pulling the latch pin; the spring is chosen, and checked before each set of trials, so the puck takes 0.22 to 0.25 s between two marks 200 mm apart on its line (0.8 to 0.9 m/s).",
-  "scores": "Dream-1 run: 0.0 (600 steps, the run limit); demo: 1.0 (scripted, success at step 159)"
+  "scores": "Dream-1 run: 0.0 (600 steps, the run limit); demo: 1.0 (scripted, success at step 159)",
+  "media": "M-W89KDE"
 }
