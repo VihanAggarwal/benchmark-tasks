@@ -1,0 +1,19 @@
+{
+  "title": "Flick a tabletop prize wheel so it coasts a full turn and stops on JACKPOT",
+  "category": "Societal relatability",
+  "keywords": [
+    "prize wheel",
+    "spin",
+    "impulse",
+    "judging speed",
+    "flick"
+  ],
+  "instruction": "Spin the prize wheel clockwise by one of its pegs so that it turns at least once after you let go and comes to rest with the pointer on the gold JACKPOT segment.",
+  "context": "Spin-to-win prize wheels are at fairs, school events, shops and trade shows. Landing a chosen segment means judging the throw: the wheel coasts and slows on its bearing after it leaves the hand, so the flick has to give it just the right speed, and the hand has to get out of the way of the pegs coming round.",
+  "setup": "Positions in cm from the midpoint between the arm bases: x forward, y to the robot's left; heights above the table. A tabletop prize wheel (20 cm across, 1.2 cm thick, 300 g, on a horizontal axle in a stand clamped to the table) stands upright facing the robot, its centre at x 36.0, y 0, 13 cm up. Its face has 12 equal segments (red, white, blue, white in turn, the JACKPOT segment gold) and a 10 mm square peg standing 20 mm out of the rim's edge at every segment boundary. A red pointer hangs from the stand's top arm just in front of the rim at 12 o'clock. At the start the pointer is on a red segment and JACKPOT is at 9 o'clock (a quarter turn counterclockwise of the pointer, as the robot sees it), so it comes to the pointer after a clockwise turn and a quarter (or that plus whole turns). Both grippers open at the ready pose.",
+  "scoring": "Real trial: two synchronized 60 fps videos, one facing the wheel (its turn counted from a tape mark on the rim) and one side-on at the wheel's height. Last touch: the last frame in which any part of a gripper is in contact with the wheel or a peg (in the simulation: a gripper point within 40 mm of the face and 35 mm of the rim). Coast: how far the wheel turns clockwise from the last touch to where it comes to rest (turning slower than 1 degree a second for 1 s). 1.0: at rest with the pointer on JACKPOT after a coast of at least one full turn. 0.5: on a segment next to JACKPOT after a full-turn coast. 0.25: any segment after a full-turn coast. 0: a coast of less than a full turn (the wheel walked round, or stopped by hand), or not at rest by the end. Success: 1.0 held for 1 s.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "The wheel turned back to its start (pointer on the red segment, JACKPOT at 9 o'clock). Record the wheel's make and model with each set of trials.",
+  "fidelity": "Rigid wheel and pegs on a frictionless axle with viscous drag (0.00117 N m s/rad, an estimate set so that a brisk flick gives a turn or two); the pointer's clicking on the pegs is not modelled (it is drawn clear of them), so the wheel slows only by its drag.",
+  "scores": "Dream-1 run: 0.0 (1,200 steps, the run limit); demo: 1.0 (scripted, success at step 237)"
+}
