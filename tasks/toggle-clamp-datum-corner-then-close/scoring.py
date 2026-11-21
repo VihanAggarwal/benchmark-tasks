@@ -1,20 +1,22 @@
 """The scorer, as plain functions of the casting's, the two clamps' and the arms' state. NumPy only.
 
 ``Tracker.update(states, arms)`` -> Result(score, success, details), fed one observation per control step. It reads
-the mechkit AssemblyStates of the casting (base frame at its centre) and of the two clamps (fixed bases; the lever's
-hinge angle ``handle`` is the joint, 0 = open and resting on its stop, Q_FLAT = the arm flat over the casting). Every
-reading is a pose or a joint angle; the arms are read only for the let-go check.
+the mechkit AssemblyStates of the casting (base frame at its centre) and of the two clamps (fixed bases; joints
+``handle``, 0 = open on its stop, QH_DC = vertical, dead centre, QH_UPPER = on its over-centre stop 1.5 degrees past
+it; ``arm``, carrying the red pad; ``link``). Every reading is a pose or a joint angle; the arms are read only for the
+let-go check.
 
     SEATED     the casting rests flat on the plate (tilt under 1 degree, lowest point within 1.5 mm of the plate's
                top) and its far face is within 1.0 mm of S1's face (at both ends of S1) and its right face within
                1.0 mm of S2's face (at both ends of S2)
-    SHUT       a lever's handle within 8 degrees of flat or past it (q >= Q_FLAT - 8 degrees: past over-centre)
+    SHUT       a handle over centre: 0.5 degree or more past vertical (dead centre); let go there, the pad's force
+               holds it on its stop
     LOCKED     shut and its pad's bottom face touching the casting's top face (between 1.5 mm into it and 0.5 mm
-               above it, the pad's centre at least 4 mm inside the top face)
+               above it, the pad's centre at least 4 mm inside the top face): it then presses the casting with 20 N
     EMPTY      shut and not touching the casting: closed on nothing (reported; it is simply not LOCKED)
     CROOKED    reported only (trace): the first step at which a clamp was LOCKED while the casting was more than
-               1.5 mm off a stop. It does not change the score: each shut pad presses the casting with 25 N, so a
-               casting clamped off a stop is held there by friction (about 16 N with one pad, 31 N with both) and is
+               1.5 mm off a stop. It does not change the score: each locked pad presses the casting with 20 N, so a
+               casting clamped off a stop is held there by friction (about 12 N with one pad, 24 N with both) and is
                simply not SEATED, unless the clamp is reopened and the casting reseated
     RELEASED   on every step of the last 1 s both finger zones are 30 mm or more from the casting and from both clamps
     STILL      over the last 1 s the casting moved at most 1 mm and turned at most 1 degree and neither handle
@@ -40,10 +42,10 @@ import rigstate
 
 CASTING, CLAMP1, CLAMP2 = "casting", "clamp1", "clamp2"
 PARTS = (CASTING, CLAMP1, CLAMP2)
-HANDLE = "handle"
+HANDLE, ARM, LINK = "handle", "arm", "link"
 CLAMP_OF = {CLAMP1: L.C1, CLAMP2: L.C2}
-# The pad's bottom-centre point as drawn (lever at q = 0), in each clamp's base frame (origin at the pivot's plan
-# position on the table): mechkit's link_to_world takes it to where the lever carries it.
+# The pad's bottom-centre point as drawn (arm at qa = 0, open), in each clamp's base frame (origin on the table under
+# the arm pivot): mechkit's link_to_world takes it to where the arm carries it.
 PAD_DRAWN = {n: c.pad_bottom(0.0) - np.array([c.px, c.py, 0.0]) for n, c in CLAMP_OF.items()}
 CORNERS = np.array([(sx * L.CS_L / 2, sy * L.CS_W / 2, sz * L.CS_H / 2) for sx in (-1, 1) for sy in (-1, 1)
                     for sz in (-1, 1)])
@@ -84,7 +86,7 @@ class Reading:
     rot: np.ndarray  # its rotation
     pts: np.ndarray  # its 8 corners
     q: dict  # clamp -> handle joint angle (rad)
-    pad: dict  # clamp -> its pad's bottom-centre point
+    pad: dict  # clamp -> its pad's bottom-centre point (on the arm)
 
 
 def read(states) -> Reading | None:
@@ -106,7 +108,7 @@ def read(states) -> Reading | None:
             if s is None:
                 return None
             v = float(s.joints[HANDLE])
-            p = np.asarray(s.link_to_world(HANDLE, PAD_DRAWN[name]), dtype=float).ravel() - np.array([0.0, 0.0, L.TOP])
+            p = np.asarray(s.link_to_world(ARM, PAD_DRAWN[name]), dtype=float).ravel() - np.array([0.0, 0.0, L.TOP])
             if not (math.isfinite(v) and p.size == 3 and np.all(np.isfinite(p))):
                 return None
             q[name], pad[name] = v, p
@@ -155,7 +157,8 @@ def seated_loose(r: Reading) -> bool:
 
 
 def shut(q: float) -> bool:
-    return q >= L.Q_SHUT - L.EPS
+    """The handle over centre (past dead centre toward its stop)."""
+    return q >= L.QH_SHUT - L.EPS
 
 
 def pad_touching(r: Reading, name: str) -> bool:
@@ -302,6 +305,8 @@ class Tracker:
             "casting_low_mm": _mm(flat_low(r)),
             "casting_mm": _mmv(r.pos),
             "q1_deg": round(math.degrees(r.q[CLAMP1]), 2), "q2_deg": round(math.degrees(r.q[CLAMP2]), 2),
+            "psi1_deg": round(math.degrees(r.q[CLAMP1] - L.QH_DC), 2),
+            "psi2_deg": round(math.degrees(r.q[CLAMP2] - L.QH_DC), 2),
             "locked1": lk[CLAMP1], "locked2": lk[CLAMP2], "empty1": em[CLAMP1], "empty2": em[CLAMP2],
             "pad1_mm": _mmv(r.pad[CLAMP1]), "pad2_mm": _mmv(r.pad[CLAMP2]),
             "released_now": bool(self.released[-1]), "released_1s": bool(released), "still_1s": still,

@@ -6,11 +6,14 @@ aluminium housing (the casting, 60 x 100 x 30 mm, 0.18 kg) lying on it.
 Goal: the casting carried into the fixture and pushed hard into its corner (far face on S1, right face on S2, flat on
 the plate), then both clamps closed over it (the pad on its top face, the lever flat and past over-centre), hands off.
 
-The parts are mechkit compounds (mechkit.py, next to this file). One declared software rule (``_toggle_rule``, a
-mechkit on_step callback, ``toggle_target``): each clamp's lever is on a stiff joint drive whose target trails the
-lever while its handle is short of over-centre (Q_OC: a constant 1.5 N pull back toward open at the grip) and runs
-on to 40 degrees past flat once beyond it, so the lever snaps shut and its pad presses the casting with 25 N; it
-takes about 27 to 34 N lifting the grip to reopen it. The arms are read through rigstate.py (the let-go check).
+The parts are mechkit compounds (mechkit.py, next to this file). Each clamp is articulated: a handle and a clamp arm
+on their own hinges on the base and a connecting link on the handle (a four-bar toggle linkage, layout.Clamp). One
+declared software rule (``_linkage_rule``, a mechkit on_step callback, ``linkage_targets``) closes the linkage's loop,
+which a tree of joints cannot: every control step it sets the arm's joint target to the angle the link gives for the
+handle's angle, the link's to the angle that keeps it on the arm, and passes the arm's load (the pad's force on the
+casting) back to the handle through the linkage's velocity ratio. Nothing drives the clamp: the robot closes it by
+moving the handle, and it locks because past dead centre the pad's force pushes the handle onto its stop. The arms are
+read through rigstate.py (the let-go check).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=task.py --scorer task_score -E object_jitter=0 ...
 Demo:    inspect-robots run --embodiment yam_arena --policy yam_scripted -E task=task.py -E object_jitter=0 ...
@@ -63,47 +66,88 @@ def _xy(c, along, across):
     return (along, across) if abs(c.dir[0]) > 0.5 else (across, along)
 
 
+def _piece(c, p0, p1, thick, width, color, w=0.0):
+    """A box in clamp ``c``'s plane from plane point p0 to p1 (its length), ``thick`` in the plane, ``width`` across,
+    centred ``w`` across; in the clamp's base frame (origin on the table under the arm pivot)."""
+    p0, p1 = np.asarray(p0, dtype=float), np.asarray(p1, dtype=float)
+    d = p1 - p0
+    length = float(np.hypot(d[0], d[1]))
+    ang = math.atan2(d[1], d[0])
+    mid = (p0 + p1) / 2
+    centre = c.world(mid[0], mid[1], w) - np.array([c.px, c.py, 0.0])
+    quat = tuple(float(v) for v in mk.matrix_to_quat(c.plane_frame(ang)))
+    return mk.box(tuple(float(v) for v in centre), (length, width, thick), color, quat=quat)
+
+
+def _square(c, p, size, width, color, w=0.0):
+    p = np.asarray(p, dtype=float)
+    return _piece(c, p - np.array([size / 2, 0.0]), p + np.array([size / 2, 0.0]), size, width, color, w)
+
+
 def base_shapes(c):
-    """A foot plate on the fixture plate and a post under the pivot (frame: origin on the table under the pivot)."""
-    fx, fy = _xy(c, 0.032, 0.034)
-    px, py = _xy(c, 2 * L.BASE_HALF_ALONG, 2 * L.BASE_HALF_ACROSS)
-    top = L.Z_PIVOT - 0.014
-    return [mk.box((0.0, 0.0, L.PLATE_H + L.FOOT_H / 2), (fx, fy, L.FOOT_H), L.BASE_COLOR),
-            mk.box((0.0, 0.0, (L.PLATE_H + L.FOOT_H + top) / 2), (px, py, top - L.PLATE_H - L.FOOT_H), L.BASE_COLOR)]
+    """A foot plate on the fixture plate under both pivots, a post under the arm pivot, two side cheeks holding the
+    handle pivot, and the two pivot pins (frame: origin on the table under the arm pivot)."""
+    top_post = L.Z_PIVOT - 0.010
+    foot0, foot1 = L.PLATE_H, L.PLATE_H + L.FOOT_H
+    w = 2 * L.BASE_HALF_ACROSS
+    cheek_top = c.A[1] + 0.008
+    shapes = [_piece(c, (L.BASE_REAR, (foot0 + foot1) / 2), (L.BASE_HALF_ALONG, (foot0 + foot1) / 2), L.FOOT_H, w,
+                     L.BASE_COLOR),
+              _piece(c, (-L.BASE_HALF_ALONG, (foot1 + top_post) / 2), (L.BASE_HALF_ALONG, (foot1 + top_post) / 2),
+                     top_post - foot1, w, L.BASE_COLOR)]
+    for side in (-1.0, 1.0):
+        shapes.append(_piece(c, (L.BASE_REAR, (foot1 + cheek_top) / 2), (-L.BASE_HALF_ALONG, (foot1 + cheek_top) / 2),
+                             cheek_top - foot1, L.CHEEK_T, L.BASE_COLOR, w=side * (L.BASE_HALF_ACROSS - L.CHEEK_T / 2)))
+    shapes += [_square(c, c.B, 0.006, w + 0.004, L.STEEL), _square(c, c.A, 0.006, w + 0.004, L.STEEL)]
+    return shapes
 
 
-def lever_shapes(c):
-    """The lever drawn open (q = 0): built shut (arm along the clamp's direction, handle above it) and turned back by
-    Q_FLAT about the pivot. Clamp frame: origin on the table under the pivot."""
-    frame = c.closed_frame()
-    turn0 = c.turn(0.0)
-    pv = c.pivot
-    org = np.array([c.px, c.py, 0.0])
-    quat = tuple(float(v) for v in mk.matrix_to_quat(turn0 @ frame))
+def handle_shapes(c):
+    """The handle drawn open (qh = 0): hub on the pivot A, the bar, the black grip on its last 45 mm, and the crank lug
+    out to the link's pin C."""
+    end = c.handle_point(c.handle, 0.0, 0.0)
+    grip0 = c.handle_point(c.handle - L.GRIP_L, 0.0, 0.0)
+    return [_square(c, c.A, 0.016, 0.014, L.LEVER_COLOR),
+            _piece(c, c.A, end, L.HANDLE_T, L.HANDLE_WIDTH, L.LEVER_COLOR),
+            _piece(c, grip0, end, L.GRIP_T, L.GRIP_WIDTH, L.GRIP_COLOR),
+            _piece(c, c.A, c.crank_pin(0.0), 0.008, 0.014, L.LEVER_COLOR)]
 
-    def piece(s0, s1, t0, t1, width, color):
-        centre_closed = pv + frame @ np.array([(s0 + s1) / 2, 0.0, (t0 + t1) / 2])
-        centre = pv + turn0 @ (centre_closed - pv) - org
-        return mk.box(tuple(float(v) for v in centre), (s1 - s0, width, t1 - t0), color, quat=quat)
 
-    h0 = L.HANDLE_OFFSET - L.HANDLE_T / 2
-    h1 = L.HANDLE_OFFSET + L.HANDLE_T / 2
-    return [
-        piece(-0.010, 0.014, -L.ARM_T / 2, h1, L.ARM_WIDTH, L.LEVER_COLOR),  # hub joining arm and handle
-        piece(0.0, c.arm, -L.ARM_T / 2, L.ARM_T / 2, L.ARM_WIDTH, L.LEVER_COLOR),  # arm bar
-        piece(c.pad_s - L.PAD_SIZE / 2, c.pad_s + L.PAD_SIZE / 2, L.PAD_T_BOTTOM, -L.ARM_T / 2, L.PAD_SIZE,
-              L.PAD_RED),  # the red pad
-        piece(0.0, c.handle, h0, h1, L.HANDLE_WIDTH, L.LEVER_COLOR),  # handle bar
-        piece(c.handle - L.GRIP_L, c.handle, L.HANDLE_OFFSET - L.GRIP_T / 2, L.HANDLE_OFFSET + L.GRIP_T / 2,
-              L.GRIP_WIDTH, L.GRIP_COLOR),  # the grip
-    ]
+def arm_shapes(c):
+    """The clamp arm drawn open (qa = 0, standing 99 degrees up): hub on the pivot B, the bar, the red pad under its
+    end, and the tail lug out to the link's pin D."""
+    return [_square(c, c.B, 0.014, L.ARM_WIDTH, L.LEVER_COLOR),
+            _piece(c, c.B, c.arm_point(c.arm, 0.0, 0.0), L.ARM_T, L.ARM_WIDTH, L.LEVER_COLOR),
+            _piece(c, c.arm_point(c.pad_s - L.PAD_SIZE / 2, -(L.ARM_T / 2 + L.PAD_H / 2), 0.0),
+                   c.arm_point(c.pad_s + L.PAD_SIZE / 2, -(L.ARM_T / 2 + L.PAD_H / 2), 0.0), L.PAD_H, L.PAD_SIZE,
+                   L.PAD_RED),
+            _piece(c, c.B, c.tail_pin(0.0), 0.008, L.ARM_WIDTH, L.LEVER_COLOR)]
+
+
+def link_shapes(c):
+    """The connecting link drawn open, from the crank pin C to the arm's tail pin D, beside the arm and the handle."""
+    return [_piece(c, c.crank_pin(0.0), c.tail_pin(0.0), L.LINK_T, L.LINK_W, L.LINK_COLOR, w=L.LINK_OFFSET)]
+
+
+def link_limits(c):
+    vals = [c.link_joint(L.QH_UPPER * k / 200) for k in range(201)]
+    return min(0.0, min(vals)) - 0.05, max(0.0, max(vals)) + 0.05
 
 
 def make_clamp(c):
-    lever = mk.hinge("handle", "Y" if c is L.C1 else "X", anchor=(0.0, 0.0, L.Z_PIVOT), shapes=lever_shapes(c),
-                     lower=0.0, upper=L.Q_UPPER, mass=L.LEVER_MASS, spring=c.press_k, damping=L.DAMPING)
-    return mk.assembly(c.name, origin=(c.px, c.py, L.TOP), shapes=base_shapes(c), joints=[lever], color=L.BASE_COLOR,
-                       friction=L.LEVER_FRICTION, tight_fit=True)
+    axis = "Y" if c is L.C1 else "X"
+    org = np.array([c.px, c.py, 0.0])
+    a_anchor = tuple(float(v) for v in c.world(*c.A) - org)
+    c_anchor = tuple(float(v) for v in c.world(*c.crank_pin(0.0)) - org)
+    lo, hi = link_limits(c)
+    handle = mk.hinge(S.HANDLE, axis, anchor=a_anchor, shapes=handle_shapes(c), lower=0.0, upper=L.QH_UPPER,
+                      mass=L.HANDLE_MASS, spring=c.handle_k, damping=L.HANDLE_DAMPING)
+    arm = mk.hinge(S.ARM, axis, anchor=(0.0, 0.0, L.Z_PIVOT), shapes=arm_shapes(c), lower=0.0, upper=c.arm_upper,
+                   mass=L.ARM_MASS, spring=c.k_arm, damping=c.arm_damping)
+    link = mk.hinge(S.LINK, axis, anchor=c_anchor, shapes=link_shapes(c), lower=lo, upper=hi, mass=L.LINK_MASS,
+                    spring=L.LINK_K, damping=L.LINK_DAMPING, parent=S.HANDLE)
+    return mk.assembly(c.name, origin=(c.px, c.py, L.TOP), shapes=base_shapes(c), joints=[handle, arm, link],
+                       color=L.BASE_COLOR, friction=L.LEVER_FRICTION, tight_fit=True)
 
 
 FIXTURE = mk.assembly("fixture", origin=(L.PLATE_X, L.PLATE_Y, L.TOP), shapes=fixture_shapes(), color=L.STEEL,
@@ -122,54 +166,70 @@ OBJECTS = [FIXTURE, GUARD, STAGING, CLAMP1_PART, CLAMP2_PART, CASTING_PART]
 SPECS = {CASTING: CASTING_PART, CLAMP1: CLAMP1_PART, CLAMP2: CLAMP2_PART}
 
 
-# -- the one declared rule: the toggle's over-centre action, through a stiff joint drive ---------------------------
-def toggle_target(c, q, ramp):
-    """One control step of the toggle rule for clamp ``c`` (layout.Clamp) with its lever at ``q`` (rad): returns
-    (drive target, ramp). ``ramp`` is None while the clamp is open; once the handle passes over-centre (Q_OC) it
-    holds the drive's target, which runs on at SNAP_RATE to Q_TARGET_SHUT (40 degrees past flat, beyond the far stop),
-    so the lever shuts and presses whatever is under its pad with up to PRESS_FORCE; a lever forced back below
-    Q_RELEASE is open again. Open, the target trails the lever by OPEN_BIAS: a constant pull toward the open stop
-    (OPEN_FORCE at the grip). A state that cannot be read pulls to open."""
+# -- the one declared rule: the linkage's loop, closed every control step ------------------------------------------
+def linkage_targets(c, qh, qa, vh, prev):
+    """One control step of the linkage rule for clamp ``c`` (layout.Clamp): handle at ``qh`` (rad) moving at ``vh``
+    (rad/s), arm at ``qa``, ``prev`` the arm target set last step (None at first). Returns ({joint: target}, the arm
+    target now).
+
+    arm     the angle the link puts it at for this handle angle (layout.Clamp.arm_target); its joint spring is the
+            spindle's stiffness, so an arm held up by the casting presses it with that spring's force
+    link    the angle that keeps the link's far end on the arm's tail pin
+    handle  the arm's spring load now, passed back through the linkage (virtual work: arm torque times d(arm)/d(handle))
+            as a torque on the handle, applied through the handle's joint spring: target = qh + torque / k (+ a lead of
+            half a step of its own speed, so a moving handle feels no drag from the 20 Hz update). Short of dead
+            centre it pushes the handle open; past it, onto its over-centre stop. With no load it is zero: the handle
+            then only has its weight and its damping.
+    The handle's target stays within HANDLE_TARGET_MAX of the handle (a torque of 0.5 rad times its spring at most,
+    beyond any the pad gives). A state that cannot be read sets nothing."""
     try:
-        q = float(q)
+        qh, qa = float(qh), float(qa)
+        vh = float(vh) if vh is not None else 0.0
     except (TypeError, ValueError):
-        return 0.0, None
-    if not math.isfinite(q):
-        return 0.0, None
-    if ramp is None and q >= L.Q_OC:
-        ramp = q
-    elif ramp is not None and q < L.Q_RELEASE:
-        ramp = None
-    if ramp is None:
-        return max(0.0, q - c.open_bias), None
-    ramp = min(L.Q_TARGET_SHUT, ramp + L.SNAP_RATE / L.CONTROL_HZ)
-    return ramp, ramp
+        return {}, prev
+    if not (math.isfinite(qh) and math.isfinite(qa)):
+        return {}, prev
+    if not math.isfinite(vh):
+        vh = 0.0
+    qh_c = min(max(qh, 0.0), L.QH_UPPER)
+    at = c.arm_target(qh_c)
+    torque = 0.0 if prev is None else c.handle_torque(qh_c, qa, prev)
+    lead = max(-L.HANDLE_LEAD_MAX, min(L.HANDLE_LEAD_MAX, L.HANDLE_LEAD * vh / L.CONTROL_HZ))
+    push = max(-L.HANDLE_TARGET_MAX, min(L.HANDLE_TARGET_MAX, lead + torque / c.handle_k))
+    return {S.HANDLE: qh + push, S.ARM: at, S.LINK: c.link_joint(qh_c)}, at
 
 
-_RAMP = {CLAMP1: None, CLAMP2: None}
+_PREV = {CLAMP1: None, CLAMP2: None}
 
 
 @mk.on_step
-def _toggle_rule(states) -> None:
+def _linkage_rule(states) -> None:
     """In the simulator, at the start of every control step (before the action and the physics)."""
     for name, part, c in ((CLAMP1, CLAMP1_PART, L.C1), (CLAMP2, CLAMP2_PART, L.C2)):
         s = states.get(name)
         try:
-            q = s.joints[S.HANDLE] if s is not None else 0.0
+            qh, qa = s.joints[S.HANDLE], s.joints[S.ARM]
+            vh = (getattr(s, "joint_vel", None) or {}).get(S.HANDLE, 0.0)
         except (AttributeError, KeyError, TypeError):
-            q = 0.0
-        target, _RAMP[name] = toggle_target(c, q, _RAMP.get(name))
-        mk.set_targets(part, S.HANDLE, target)
+            continue
+        targets, _PREV[name] = linkage_targets(c, qh, qa, vh, _PREV.get(name))
+        for joint, value in targets.items():
+            mk.set_targets(part, joint, value)
 
 
 # -- the offline stand-in for the physics ----------------------------------------------------------------------------
 # The checker's proxy carries a gripped part rigidly and drops it straight down; it neither pushes the casting nor
-# turns a lever. Offline only (never in the simulator), this model gives the scorer: (1) the casting carried by a
+# turns a handle. Offline only (never in the simulator), this model gives the scorer: (1) the casting carried by a
 # gripper that holds it across its 60 mm (follows the TCP) and dropped onto the highest support under it when let go;
-# (2) pushed by a closed gripper's block (its face PAD_FACE ahead of the TCP along the closing direction) toward +x
-# until S1 or toward -y until S2; (3) a lever turned by the block's bottom front corner riding on the handle's back
-# face (layout.contact_psi); past over-centre it goes on to flat by itself (on the casting's top, or to its far stop
-# when nothing is under the pad), short of it it springs back to open.
+# (2) pushed by a closed gripper's block (its faces PAD_FACE ahead of the TCP along the closing direction and
+# FIST_HALF across it) toward +x until S1 or toward -y until S2; (3) a handle held by a gripper closed on its grip at
+# the grasp point follows the TCP round its pivot (layout.Clamp.grasp_point); let go, a handle past dead centre goes
+# onto its over-centre stop (the pad's force through the linkage), one short of it but past Clamp.balance_qh settles
+# with the pad just touching a casting under it (the arm's weight against the pad's force; with nothing under the
+# pad it closes onto its stop, shut on nothing), and one nearer its open stop falls back open (the handle's weight);
+# (4) a closed gripper's block behind a grip, pushing its back face forward, turns the handle with it (onto its stop
+# at most); (5) the arm where the linkage puts it, or flat on the casting's top when the casting is seated under its
+# pad.
 class OfflineModel:
     def __init__(self) -> None:
         self.reset()
@@ -178,8 +238,8 @@ class OfflineModel:
         self.steps = 0
         self.cx, self.cy, self.cz = L.START_X, L.START_Y, L.START_Z
         self.carry: dict = {}  # arm -> (dx, dy, dz) of the casting's centre from the TCP
-        self.psi = {CLAMP1: -math.radians(30.0), CLAMP2: -math.radians(30.0)}  # lever angle from vertical
-        self.shut = {CLAMP1: False, CLAMP2: False}
+        self.qh = {CLAMP1: 0.0, CLAMP2: 0.0}
+        self.held: dict = {}  # arm -> clamp name whose handle it holds
 
     # support height under the casting's footprint at its centre (x, y)
     def support(self, x, y) -> float:
@@ -202,6 +262,30 @@ class OfflineModel:
                 break
         return 0.0 if yaw is None else yaw
 
+    @staticmethod
+    def handle_from_tcp(c, tcp) -> float:
+        """The handle angle that puts its grasp point under this TCP (projected into the clamp's plane)."""
+        p = np.array([float(tcp[0]), float(tcp[1]), float(tcp[2]) - L.TOP - L.GRASP_TCP_UP])
+        rel = p[:2] - np.array([c.px, c.py])
+        a = float(rel @ c.dir)
+        psi = math.atan2(a - c.A[0], p[2] - c.A[1])
+        return min(max(psi + L.HANDLE_OPEN, 0.0), L.QH_UPPER)
+
+    def _grasp(self, side, tcp, opening) -> None:
+        lo, hi = L.GRASP_OPENING
+        if not (lo < opening < hi):
+            self.held.pop(side, None)
+            return
+        if side in self.held:
+            return
+        for name, c in ((CLAMP1, L.C1), (CLAMP2, L.C2)):
+            g = c.grasp_point(c.handle - L.GRASP_BACK, self.qh[name])
+            want = np.array([g[0], g[1], g[2] + L.GRASP_TCP_UP])
+            here = np.array([float(tcp[0]), float(tcp[1]), float(tcp[2]) - L.TOP])
+            if float(np.linalg.norm(here - want)) <= L.GRASP_TOL:
+                self.held[side] = name
+                return
+
     def step(self, arms) -> None:
         self.steps += 1
         read = rigstate.read_arms(arms)
@@ -222,74 +306,116 @@ class OfflineModel:
             tcp = read[rigstate.ARMS.index(side)][0]
             dx, dy, dz = self.carry[side]
             self.cx, self.cy, self.cz = float(tcp[0]) + dx, float(tcp[1]) + dy, float(tcp[2]) - L.TOP + dz
-        pushed = {CLAMP1: None, CLAMP2: None}
+            if self.cz - L.CS_H / 2 < L.PLATE_H + L.STOP_H and abs(self.cy) < L.PLATE_Y1:
+                # a held casting low over the plate meets the stops' faces; the wrist gives, the grip does not slip
+                if L.S2_X0 - L.CS_L / 2 < self.cx < L.S2_X1 + L.CS_L / 2:
+                    self.cy = max(self.cy, L.SEAT_Y)
+                if L.S1_Y0 - L.CS_W / 2 < self.cy < L.S1_Y1 + L.CS_W / 2:
+                    self.cx = min(self.cx, L.SEAT_X)
         for side, (tcp, tips, opening) in zip(rigstate.ARMS, read):
-            if opening > 0.2 or side in self.carry:
+            if side in self.carry:
+                continue
+            self._grasp(side, tcp, opening)
+            if opening > 0.2 or side in self.held:
                 continue
             x, y = float(tcp[0]), float(tcp[1])
             tip_z = float(tips[2]) - L.TOP
             x_closing = abs(math.sin(self._yaw(side))) > 0.5
-            # the casting
-            if abs(tip_z + L.FIST_H / 2 - self.cz) < L.CS_H / 2 + L.FIST_H / 2 - 0.002 and tip_z < self.cz + L.CS_H / 2:
-                if x_closing and abs(y - self.cy) < L.CS_W / 2 + L.FIST_HALF:
-                    behind = x - L.PAD_FACE <= self.cx - L.CS_L / 2 + 0.0005
-                    face = x + L.PAD_FACE
-                    if behind and face > self.cx - L.CS_L / 2:
-                        self.cx = min(face + L.CS_L / 2, L.SEAT_X)
-                elif (not x_closing) and abs(x - self.cx) < L.CS_L / 2 + L.FIST_HALF:
-                    behind = y + L.PAD_FACE >= self.cy + L.CS_W / 2 - 0.0005
-                    face = y - L.PAD_FACE
-                    if behind and face < self.cy + L.CS_W / 2:
-                        self.cy = max(face - L.CS_W / 2, L.SEAT_Y)
-            # the levers
-            for name, c in ((CLAMP1, L.C1), (CLAMP2, L.C2)):
-                if self.shut[name]:
-                    continue
-                if x_closing != (abs(c.dir[0]) > 0.5):
-                    continue
-                lateral = abs((y - c.py) if x_closing else (x - c.px))
-                if lateral > L.GRIP_WIDTH / 2 + L.FIST_HALF:
-                    continue
-                front = (x + L.PAD_FACE) if x_closing else (y - L.PAD_FACE)
-                a = L.plan_ab(c, (front, c.py) if x_closing else (c.px, front))
-                # the block's corner must be on the handle's back face now, or inside the handle up to 40 mm
-                # (the arm's step); a corner far in front of the open handle pushes nothing
-                p0 = self.psi[name]
-                d = (a, tip_z - L.Z_PIVOT)
-                t_c = -d[0] * math.cos(p0) + d[1] * math.sin(p0)
-                s_c = d[0] * math.sin(p0) + d[1] * math.cos(p0)
-                ft = L.face_t(c, s_c)
-                if not (0.0 <= s_c <= c.handle + 0.004 and ft - 0.040 <= t_c <= ft + 0.0005):
-                    continue
-                psi, s = L.contact_psi(c, a, tip_z)
-                if psi is not None and psi > p0 - 1e-9:
-                    pushed[name] = psi
-        for name, c in ((CLAMP1, L.C1), (CLAMP2, L.C2)):
-            if self.shut[name]:
+            face_x = L.PAD_FACE if x_closing else L.FIST_HALF  # the block's face ahead of the TCP along x
+            face_y = L.FIST_HALF if x_closing else L.PAD_FACE  # and along y
+            if not (abs(tip_z + L.FIST_H / 2 - self.cz) < L.CS_H / 2 + L.FIST_H / 2 - 0.002
+                    and tip_z < self.cz + L.CS_H / 2):
                 continue
-            if pushed[name] is not None:
-                self.psi[name] = min(pushed[name], math.radians(100.0))
-            elif self.psi[name] < L.Q_OC - L.LEAN:
-                self.psi[name] = -L.LEAN  # springs back to the open stop
-            if self.psi[name] >= L.Q_OC - L.LEAN:
-                self.shut[name] = True
+            if abs(y - self.cy) < L.CS_W / 2 + face_y - 0.004 and x < self.cx - L.CS_L / 2:
+                behind = x - face_x <= self.cx - L.CS_L / 2 + 0.0005
+                face = x + face_x
+                if behind and face > self.cx - L.CS_L / 2:
+                    self.cx = min(face + L.CS_L / 2, L.SEAT_X)
+            elif abs(x - self.cx) < L.CS_L / 2 + face_x - 0.004 and y > self.cy + L.CS_W / 2:
+                behind = y + face_y >= self.cy + L.CS_W / 2 - 0.0005
+                face = y - face_y
+                if behind and face < self.cy + L.CS_W / 2:
+                    self.cy = max(face - L.CS_W / 2, L.SEAT_Y)
         for name, c in ((CLAMP1, L.C1), (CLAMP2, L.C2)):
-            if self.shut[name]:
-                over = (abs(c.pad_bottom(L.Q_FLAT)[0] - self.cx) <= L.CS_L / 2 - L.PAD_INSET
-                        and abs(c.pad_bottom(L.Q_FLAT)[1] - self.cy) <= L.CS_W / 2 - L.PAD_INSET
-                        and abs(self.cz - L.CS_H / 2 - L.PLATE_H) < 0.002)
-                self.psi[name] = (L.Q_FLAT - L.LEAN) if over else (L.Q_UPPER - L.LEAN)
+            holders = [s for s, n in self.held.items() if n == name]
+            pushed = [q for q in (self.block_push(c, name, side, tcp, tips, opening)
+                                  for side, (tcp, tips, opening) in zip(rigstate.ARMS, read)
+                                  if side not in self.carry and side not in self.held) if q is not None]
+            if holders:
+                tcp = read[rigstate.ARMS.index(holders[0])][0]
+                self.qh[name] = self.handle_from_tcp(c, tcp)
+            elif pushed:
+                self.qh[name] = max(pushed)  # a block pushing the grip's back face carries the handle forward
+            elif self.qh[name] >= L.QH_DC:
+                self.qh[name] = L.QH_UPPER  # past dead centre: onto the over-centre stop
+            elif self.qh[name] > c.balance_qh():  # the arm's weight closes it: onto the casting, short of vertical
+                self.qh[name] = c.touch_qh() if self.under_pad(c) else L.QH_UPPER
+            else:
+                self.qh[name] = 0.0  # near its open stop: the handle's weight takes it back open
 
-    def q(self, name: str) -> float:
-        return self.psi[name] + L.LEAN
+    def block_push(self, c, name, side, tcp, tips, opening):
+        """The handle angle a closed gripper's block puts clamp ``c``'s handle at by pushing its grip's back face
+        forward (toward the casting), or None if it does not touch it from behind. The block: its flat faces PAD_FACE
+        ahead of the TCP along the fingers' closing direction and FIST_HALF across it, from the pad tips up FIST_H; it
+        meets the grip (the handle's last GRIP_L) where they overlap in height and across the clamp's plane."""
+        if opening > 0.2:
+            return None
+        x_closing = abs(math.sin(self._yaw(side))) > 0.5
+        along_x = abs(c.dir[0]) > 0.5
+        face = L.PAD_FACE if x_closing == along_x else L.FIST_HALF  # the block's face ahead of the TCP along c.dir
+        half_across = L.FIST_HALF if x_closing == along_x else L.PAD_FACE
+        rel = np.array([float(tcp[0]) - c.px, float(tcp[1]) - c.py])
+        a = float(rel @ c.dir)
+        w = float(rel @ c.across()[:2])
+        if abs(w) > half_across + L.GRIP_WIDTH / 2 - 0.002:
+            return None
+        z0 = float(tips[2]) - L.TOP
+        z1 = z0 + L.FIST_H
+        qh = self.qh[name]
+        psi = qh - L.HANDLE_OPEN
+        g0 = c.A[1] + (c.handle - L.GRIP_L) * math.cos(psi)  # the grip's height span now
+        g1 = c.A[1] + c.handle * math.cos(psi)
+        lo, hi = max(z0, g0), min(z1, g1)
+        if hi <= lo:
+            return None
+
+        def back(p):  # the grip's back face, its rearmost point over the overlap, along c.dir
+            return min(c.A[0] + (z - c.A[1]) * math.tan(p) - (L.GRIP_T / 2) / math.cos(p) for z in (lo, hi))
+
+        if a > back(psi):  # the block's centre is not behind the grip: it is not pushing it forward
+            return None
+        if a + face <= back(psi):
+            return None
+        p_lo, p_hi = psi, L.QH_UPPER - L.HANDLE_OPEN
+        if back(p_hi) <= a + face:
+            return L.QH_UPPER  # onto its over-centre stop
+        for _ in range(50):
+            mid = (p_lo + p_hi) / 2
+            if back(mid) < a + face:
+                p_lo = mid
+            else:
+                p_hi = mid
+        return min(max(p_lo + L.HANDLE_OPEN, qh), L.QH_UPPER)
+
+    def under_pad(self, c) -> bool:
+        p = c.pad_bottom(L.QA_FLAT)
+        return bool(abs(p[0] - self.cx) <= L.CS_L / 2 - L.PAD_INSET and abs(p[1] - self.cy) <= L.CS_W / 2 - L.PAD_INSET
+                    and abs(self.cz - L.CS_H / 2 - L.PLATE_H) < 0.002)
+
+    def qa(self, name: str) -> float:
+        c = L.C1 if name == CLAMP1 else L.C2
+        at = c.arm_target(self.qh[name])
+        return min(at, L.QA_FLAT) if self.under_pad(c) else at
 
     def states(self) -> dict:
         cs = mk.state_from_poses(CASTING_PART, (self.cx, self.cy, L.TOP + self.cz, 0.0, 0.0, 0.0, 1.0),
                                  source="offline")
         out = {CASTING: cs}
         for name, part, c in ((CLAMP1, CLAMP1_PART, L.C1), (CLAMP2, CLAMP2_PART, L.C2)):
+            qh = self.qh[name]
             out[name] = mk.state_from_poses(part, (c.px, c.py, L.TOP, 0.0, 0.0, 0.0, 1.0),
-                                            joints={S.HANDLE: self.q(name)}, source="offline")
+                                            joints={S.HANDLE: qh, S.ARM: self.qa(name), S.LINK: c.link_joint(qh)},
+                                            source="offline")
         return out
 
 
@@ -308,7 +434,7 @@ _HIST: deque = deque(maxlen=60)  # trace only: every 2nd step [step, gap S1 mm, 
 
 @rigstate.on_reset
 def _new_episode() -> None:
-    _RAMP.update({CLAMP1: None, CLAMP2: None})
+    _PREV.update({CLAMP1: None, CLAMP2: None})
     _TRACKER.reset()
     _OFFLINE.reset()
     _HIST.clear()
@@ -316,7 +442,7 @@ def _new_episode() -> None:
 
 @mk.on_reset
 def _kit_reset() -> None:
-    _RAMP.update({CLAMP1: None, CLAMP2: None})
+    _PREV.update({CLAMP1: None, CLAMP2: None})
     _TRACKER.reset()
     _OFFLINE.reset()
     _HIST.clear()
@@ -386,38 +512,87 @@ CLOSED = 0.0
 YAW_XL, YAW_XR, YAW_Y = -math.pi / 2, math.pi / 2, 0.0  # closing along x (left, right arm) and along y
 
 # the left arm: pick, carry, place, push into the corner
+GRIP_DY = 0.010  # the pads take the casting 10 mm left (+y) of its centre: clear of C1's base when they open
 GRIP_DOWN = 0.018  # pad tips 18 mm under the casting's top
 GRIP_Z = L.ST_H + L.CS_H - GRIP_DOWN + PAD_TIP  # 0.045: TCP height at the pick
 CARRY_Z = 0.095  # casting's underside 70 mm up: clear of the clamps' bases (40 mm)
 GRIP_TO_BOTTOM = GRIP_Z - L.ST_H  # TCP height above the casting's underside while held (25 mm)
-LANE_X = 0.240
+LANE_X = 0.225
 SHIFT_Y = 0.045  # the casting's centre while it crosses toward the plate: clear of C1's lever (y -37 to -13 mm)
 SHIFT_Z = 0.040 + GRIP_TO_BOTTOM  # its underside 40 mm up: over the stops (24 mm)
 PLACE_Z = L.PLATE_H + 0.003 + GRIP_TO_BOTTOM  # set down 3 mm over the plate
 PUSH_TIPS = 0.026  # pad tips 26 mm up: on the casting's side face from 26 to 42 mm, 14 mm over the plate
 PUSH_Z = PUSH_TIPS + PAD_TIP
 PUSH1_Y = 0.030  # inside S1's 90 mm face, clear of C1's base (y -42 to -8 mm)
-PUSH1_X0 = L.PLACE_NEAR_X - 0.012 - L.PAD_FACE  # block face 12 mm short of the near face
-PUSH2_X = L.SEAT_X
-PUSH2_Y0 = L.PLACE_LEFT_Y + 0.012 + L.PAD_FACE  # block face 12 mm short of the left face
+PUSH_GAP = 0.012
+PUSH1_X0 = L.PLACE_NEAR_X - PUSH_GAP - L.PAD_FACE  # block face 12 mm short of the near face
 OVERTRAVEL = 0.008
+HELD_OVERTRAVEL = 0.004  # the held casting is carried 4 mm past S2's face: the wrist gives
 PUSH_SPEED = 0.020  # m/s
 HOVER_L = 0.12
-PARK_L = (0.22, 0.30, 0.200)
+PARK_L = (0.22, 0.30, 0.160)
+PARK_NC = (0.14, 0.33, 0.200)  # no_clamps: aside, well clear of C2's open handle
 
-# the levers: the closed fingers' block rides the handle's back face
-S_PUSH = {L.C1.name: 0.045, L.C2.name: 0.060}
-ARC_DEG = (-30.0, -15.0, 0.0, 15.0, 30.0, 45.0, 60.0, 72.0)
-ARC_STEP_S = 0.9
-LEAD = 0.012  # the block starts this far short of the handle's face
+# the clamps, in two parts. (1) The free stroke: a gripper closed on each handle's grip, 15 mm short of its end,
+# carries it round its pivot until the pad comes down onto the casting. The fingers close across the handle, so the
+# pinch drives it by friction only: enough for the free stroke (about 0.3 N), not for the press (GPU, 21 Nov: pinched
+# through the press, both handles stalled 2 to 3 degrees short of vertical, the fingers slipping along the grip with
+# the arm 8 to 10 mm behind its command). (2) The press: the gripper lets go, closes into a block behind the grip
+# with its fingers along the stroke and pushes the grip's back face, square on, through the press and dead centre
+# onto the over-centre stop, its face commanded well past where the stop puts the grip (the arm trails a pushed load).
+PINCH = -0.006  # 12 mm commanded across the 24 mm grip: squeezed
+ARC_FREE = (-57.0, -45.0, -33.0, -21.0, -11.0)  # handle angle from vertical (deg): the free part of the stroke
+ARC_FREE_S = 1.0  # s per step of it
+ARC_LAND = (-6.0, -2.0)  # slowly on till the pad lands (it touches 2.8 (C2) / 3.4 (C1) degrees short of vertical)
+ARC_LAND_S = 0.8
+ARC_YAW = {L.C1.name: 0.0, L.C2.name: -math.pi / 2}  # fingers closing across each handle (along its pivot axis)
+PUSH_YAW = {L.C1.name: YAW_XR, L.C2.name: YAW_Y}  # fingers closing along each stroke: the block's face leads
+PUSH_START_PSI = -9.0  # the block comes down 10 mm behind the grip as it stands at this angle (it rests at about -3)
+PUSH_CLEAR = 0.010
+PUSH_LOAD_PSI = -3.0  # the block's face up to the grip as it stands with the pad just on the casting
+OVERSHOOT = 0.020  # the block's face commanded 20 mm past the grip's back face on the stop (+1.5 degrees)
+PUSH_LOAD_S = 1.0
+PRESS_S = 3.0  # slowly through the press, dead centre and onto the stop
+FIST_Z_UP = 0.002  # the block's middle (TCP - 2 mm) at the grip's middle: 11.5 mm in from both its ends
 
 
-def arc_tcp(c, psi_deg):
-    """TCP (x, y, z above the table) that puts the block's bottom front corner on the handle's back face at ``psi``."""
-    a, z = L.block_corner(c, math.radians(psi_deg), S_PUSH[c.name])
-    if abs(c.dir[0]) > 0.5:
-        return (c.px + a - L.PAD_FACE, c.py, z + PAD_TIP)
-    return (c.px, c.py - a + L.PAD_FACE, z + PAD_TIP)
+def grasp_tcp(c, psi_deg):
+    """TCP (x, y, z above the table) on the handle's grip with the handle ``psi_deg`` from vertical."""
+    g = c.grasp_point(c.handle - L.GRASP_BACK, L.QH_DC + math.radians(psi_deg))
+    return (float(g[0]), float(g[1]), float(g[2]) + L.GRASP_TCP_UP)
+
+
+def back_face_a(c, psi_deg, z):
+    """Where the grip's back face is, along the clamp's direction from its arm pivot (m), at height ``z`` above the
+    table, with the handle ``psi_deg`` from vertical (+ toward the casting)."""
+    p = math.radians(psi_deg)
+    return float(c.A[0] + (z - c.A[1]) * math.tan(p) - (L.GRIP_T / 2) / math.cos(p))
+
+
+def push_z(c):
+    """TCP height for the push: the block (pad tips 13 mm under the TCP, flat 22 mm above them) on the grip's
+    middle."""
+    return float(c.A[1] + c.handle - L.GRIP_L / 2 + FIST_Z_UP)
+
+
+def push_points(c):
+    """The block's face positions (along the clamp's direction) for the push: start (10 mm behind the grip at
+    PUSH_START_PSI, measured at the handle's end, which leans furthest back), up to the grip (PUSH_LOAD_PSI, at the
+    block's top) and the end (OVERSHOOT past the grip's back face on the stop, at the block's bottom, which meets it
+    first past vertical)."""
+    z = push_z(c)
+    tips, top = z - PAD_TIP, z - PAD_TIP + L.FIST_H
+    end_z = c.A[1] + c.handle * math.cos(math.radians(PUSH_START_PSI))
+    start = back_face_a(c, PUSH_START_PSI, end_z) - PUSH_CLEAR
+    load = back_face_a(c, PUSH_LOAD_PSI, top)
+    end = back_face_a(c, math.degrees(L.OVER_CENTRE), tips) + OVERSHOOT
+    return start, load, end
+
+
+def push_tcp(c, face, z):
+    """TCP (x, y, z above the table) with the block's face at ``face`` along the clamp's direction."""
+    p = c.world(face - L.PAD_FACE, z)
+    return (float(p[0]), float(p[1]), float(p[2]))
 
 
 def _w(d, x, y, z, finger, label, yaw):
@@ -439,9 +614,14 @@ def _until(plan, prefix) -> float:
 
 def left_seat_moves():
     """The left arm: pick the casting off the staging block, carry it over the clamps' bases to the plate, set it down
-    12 mm short of S1 and 12 mm off S2, let go, close the fingers into a block and push it +x into S1, then -y into
-    S2. Ends 10 cm over the plate with the block closed."""
-    x, y = L.START_X, L.START_Y
+    6 mm short of S1 and 12 mm off S2, slide it (still held, 3 mm over the plate) -y onto S2, let go, close the fingers
+    into a block and push it +x into S1 (it slides along S2). The pads hold it 10 mm left of its centre, clear of C1's
+    base when they open. Ends 18 cm over the plate with the block closed. Seating
+    against S2 while it is held keeps the gripper's housing out of the open C2 arm, which stands 99 degrees up just
+    beyond the casting's left face."""
+    x, y = L.START_X, L.START_Y + GRIP_DY
+    shift_y, place_y = SHIFT_Y + GRIP_DY, L.PLACE_Y + GRIP_DY
+    s2_y, seat_y = L.SEAT_Y - HELD_OVERTRAVEL + GRIP_DY, L.SEAT_Y + GRIP_DY
     return [
         _w(2.0, x, y, 0.16, OPEN_L, "over the casting on the staging block", YAW_XL),
         _w(1.0, x, y, GRIP_Z + 0.030, OPEN_L, "down to just above it", YAW_XL),
@@ -450,76 +630,91 @@ def left_seat_moves():
         _w(1.5, x, y, GRIP_Z, GRIP, "grip the casting across its 60 mm", YAW_XL),
         _w(2.0, x, y, CARRY_Z, GRIP, "lift it 70 mm clear", YAW_XL),
         _w(1.0, LANE_X, y, CARRY_Z, GRIP, "slide it to the lane clear of the left clamp", YAW_XL),
-        _w(3.0, LANE_X, SHIFT_Y, CARRY_Z, GRIP, "carry it toward the plate", YAW_XL),
-        _w(1.5, L.PLACE_X, SHIFT_Y, CARRY_Z, GRIP, "over the plate", YAW_XL),
-        _w(1.0, L.PLACE_X, SHIFT_Y, SHIFT_Z, GRIP, "down over the stops", YAW_XL),
-        _w(1.5, L.PLACE_X, L.PLACE_Y, SHIFT_Z, GRIP, "across to its place", YAW_XL),
-        _w(1.5, L.PLACE_X, L.PLACE_Y, PLACE_Z, GRIP, "set it down", YAW_XL),
-        _w(0.5, L.PLACE_X, L.PLACE_Y, PLACE_Z, GRIP, "settle", YAW_XL),
-        _w(1.5, L.PLACE_X, L.PLACE_Y, PLACE_Z, OPEN_L, "let go", YAW_XL),
-        _w(1.0, L.PLACE_X, L.PLACE_Y, HOVER_L, OPEN_L, "straight up", YAW_XL),
+        _w(3.0, LANE_X, shift_y, CARRY_Z, GRIP, "carry it toward the plate", YAW_XL),
+        _w(1.5, L.PLACE_X, shift_y, CARRY_Z, GRIP, "over the plate", YAW_XL),
+        _w(1.0, L.PLACE_X, shift_y, SHIFT_Z, GRIP, "down over the stops", YAW_XL),
+        _w(1.5, L.PLACE_X, place_y, SHIFT_Z, GRIP, "across to its place", YAW_XL),
+        _w(1.5, L.PLACE_X, place_y, PLACE_Z, GRIP, "set it down", YAW_XL),
+        _w(0.5, L.PLACE_X, place_y, PLACE_Z, GRIP, "settle", YAW_XL),
+        _w((L.PLACE_GAP_Y + HELD_OVERTRAVEL) / PUSH_SPEED, L.PLACE_X, s2_y, PLACE_Z, GRIP,
+           "slide it -y onto S2, still held", YAW_XL),
+        _w(0.5, L.PLACE_X, s2_y, PLACE_Z, GRIP, "settle against S2", YAW_XL),
+        _w(0.5, L.PLACE_X, seat_y - 0.001, PLACE_Z, GRIP, "ease off to a light press", YAW_XL),
+        _w(1.5, L.PLACE_X, seat_y - 0.001, PLACE_Z, OPEN_L, "let go", YAW_XL),
+        _w(1.0, L.PLACE_X, seat_y, HOVER_L, OPEN_L, "straight up", YAW_XL),
         _w(2.0, PUSH1_X0, PUSH1_Y, HOVER_L, CLOSED, "close the fingers into a block, over the casting's near face",
            YAW_XL),
         _w(2.0, PUSH1_X0, PUSH1_Y, PUSH_Z, CLOSED, "down beside its near face", YAW_XL),
-        _w(abs(L.PLACE_GAP_X + 0.012 + OVERTRAVEL) / PUSH_SPEED, PUSH1_X0 + 0.012 + L.PLACE_GAP_X + OVERTRAVEL,
+        _w(abs(L.PLACE_GAP_X + PUSH_GAP + OVERTRAVEL) / PUSH_SPEED, PUSH1_X0 + PUSH_GAP + L.PLACE_GAP_X + OVERTRAVEL,
            PUSH1_Y, PUSH_Z, CLOSED, "push it +x into S1", YAW_XL),
-        _w(0.5, PUSH1_X0 + 0.012 + L.PLACE_GAP_X + OVERTRAVEL, PUSH1_Y, PUSH_Z, CLOSED, "settle against S1", YAW_XL),
+        _w(0.5, PUSH1_X0 + PUSH_GAP + L.PLACE_GAP_X + OVERTRAVEL, PUSH1_Y, PUSH_Z, CLOSED, "settle against S1", YAW_XL),
         _w(1.0, PUSH1_X0, PUSH1_Y, PUSH_Z, CLOSED, "back off", YAW_XL),
-        _w(1.0, PUSH1_X0, PUSH1_Y, HOVER_L, CLOSED, "up", YAW_XL),
-        _w(2.0, PUSH2_X, PUSH2_Y0, HOVER_L, CLOSED, "over the casting's left face", YAW_Y),
-        _w(2.0, PUSH2_X, PUSH2_Y0, PUSH_Z, CLOSED, "down beside its left face", YAW_Y),
-        _w((0.012 + L.PLACE_GAP_Y + OVERTRAVEL) / PUSH_SPEED, PUSH2_X,
-           PUSH2_Y0 - 0.012 - L.PLACE_GAP_Y - OVERTRAVEL, PUSH_Z, CLOSED, "push it -y into S2", YAW_Y),
-        _w(0.5, PUSH2_X, PUSH2_Y0 - 0.012 - L.PLACE_GAP_Y - OVERTRAVEL, PUSH_Z, CLOSED, "settle against S2", YAW_Y),
-        _w(1.0, PUSH2_X, PUSH2_Y0, PUSH_Z, CLOSED, "back off", YAW_Y),
-        _w(1.0, PUSH2_X, PUSH2_Y0, HOVER_L + 0.06, CLOSED, "up", YAW_Y),
+        _w(1.0, PUSH1_X0, PUSH1_Y, HOVER_L + 0.06, CLOSED, "up", YAW_XL),
     ]
 
 
-def arm_moves(c, side_yaw, start_hover, park):
-    """A block pushing clamp ``c`` shut: hover over the air in front of the open handle, down, then the arc."""
-    first = arc_tcp(c, ARC_DEG[0])
-    if abs(c.dir[0]) > 0.5:
-        lead = (first[0] - LEAD, first[1], first[2])
-    else:
-        lead = (first[0], first[1] + LEAD, first[2])
+def clamp_moves(c, start_hover, park):
+    """A gripper closing clamp ``c``: over the open handle's grip, down round it, pinch it, carry it round its pivot
+    (the free stroke) until the pad comes down on the casting, let go and rise clear; then, fingers closed into a block
+    along the stroke, down behind the grip and push its back face slowly through the press and dead centre onto the
+    over-centre stop, hold, back off, up, aside."""
+    yaw = ARC_YAW[c.name]
+    g0 = grasp_tcp(c, ARC_FREE[0])
     plan = [
-        _w(2.0, lead[0], lead[1], start_hover, CLOSED, f"over the air in front of {c.name}'s open handle", side_yaw),
-        _w(2.0, lead[0], lead[1], lead[2], CLOSED, "down beside the handle", side_yaw),
+        _w(2.0, g0[0], g0[1], start_hover, OPEN, f"over {c.name}'s open handle", yaw),
+        _w(1.2, g0[0], g0[1], g0[2] + 0.030, OPEN, "down to just above its grip", yaw),
+        _w(1.0, g0[0], g0[1], g0[2], OPEN, "down round the grip", yaw),
+        _w(1.5, g0[0], g0[1], g0[2], PINCH, f"pinch {c.name}'s grip", yaw),
     ]
-    # first contact: the block comes up to the handle's face at the open stop
-    plan.append(_w(1.0, first[0], first[1], first[2], CLOSED, f"to {c.name}'s handle", side_yaw))
-    for deg in ARC_DEG[1:]:
-        p = arc_tcp(c, deg)
-        plan.append(_w(ARC_STEP_S, p[0], p[1], p[2], CLOSED, f"push {c.name}'s handle to {deg:.0f} deg", side_yaw))
-    last = arc_tcp(c, ARC_DEG[-1])
-    plan.append(_w(0.5, last[0], last[1], last[2], CLOSED, "settle", side_yaw))
-    plan.append(_w(1.0, last[0], last[1], last[2] + 0.060, CLOSED, f"straight up off {c.name}", side_yaw))
-    plan.append(_w(2.0, park[0], park[1], park[2], OPEN, "aside", side_yaw))
+    for deg in ARC_FREE[1:]:
+        p = grasp_tcp(c, deg)
+        plan.append(_w(ARC_FREE_S, *p, PINCH, f"swing {c.name}'s handle to {deg:.0f} deg", yaw))
+    for deg in ARC_LAND:
+        p = grasp_tcp(c, deg)
+        plan.append(_w(ARC_LAND_S, *p, PINCH, f"lower {c.name}'s pad onto the casting: handle to {deg:.0f} deg", yaw))
+    last = grasp_tcp(c, ARC_LAND[-1])
+    clear_z = c.A[1] + c.handle + PAD_TIP + 0.015  # pad tips 15 mm over the handle's end
+    plan.append(_w(0.5, *last, PINCH, "settle with the pad on the casting", yaw))
+    plan.append(_w(1.0, *last, OPEN, f"let go of {c.name}'s grip", yaw))
+    plan.append(_w(1.0, last[0], last[1], clear_z, OPEN, f"straight up off {c.name}'s grip", yaw))
+    start, load, end = push_points(c)
+    z, pyaw = push_z(c), PUSH_YAW[c.name]
+    p0, p1, p2 = push_tcp(c, start, clear_z), push_tcp(c, start, z), push_tcp(c, load, z)
+    p3, p4 = push_tcp(c, end, z), push_tcp(c, start, z)
+    plan += [
+        _w(1.5, *p0, CLOSED, f"behind {c.name}'s handle, the fingers closed into a block along the stroke", pyaw),
+        _w(1.5, *p1, CLOSED, f"down behind {c.name}'s grip", pyaw),
+        _w(PUSH_LOAD_S, *p2, CLOSED, f"up to {c.name}'s grip", pyaw),
+        _w(PRESS_S, *p3, CLOSED, f"push {c.name}'s handle through dead centre onto its stop", pyaw),
+        _w(0.5, *p3, CLOSED, "hold it on the over-centre stop", pyaw),
+        _w(0.8, *p4, CLOSED, f"back off {c.name}'s handle", pyaw),
+        _w(0.8, p4[0], p4[1], clear_z, CLOSED, f"straight up off {c.name}", pyaw),
+        _w(1.5, park[0], park[1], park[2], OPEN, "aside", pyaw),
+    ]
     return plan
 
 
 PARK_R = (0.14, -0.20, 0.150)
-WAIT_R = (0.20, -0.17, 0.200)
+WAIT_R = (0.18, -0.24, 0.150)
 
 
 def plans(variant: str = "") -> dict:
-    """Both arms' plans. Order of work: the left arm seats the casting (pick, carry, set down, push +x, push -y), then
-    goes round to the left clamp and shuts it; the right arm waits aside, and shuts the near clamp once the left arm
-    has moved off the casting."""
+    """Both arms' plans. Order of work: the left arm seats the casting (pick, carry, set down, slide it onto S2 while
+    held, push +x into S1), then goes round to the left clamp and closes it; the right arm waits aside until the left
+    gripper has let go of C2's grip and is rising (the two wrists stay apart: the left then works behind C2's handle,
+    y over +14 cm, the right at C1, y -2.5 cm), then closes the near clamp."""
     if variant not in ("",) + VARIANTS:
         raise ValueError(f"DEMO_VARIANT={variant!r} is not one of {', '.join(VARIANTS)}")
     seat = left_seat_moves()
     seated_at = _duration(seat)
     left = list(seat)
     if variant == "no_clamps":
-        left.append(_w(2.0, *PARK_L[:2], PARK_L[2], OPEN, "aside", YAW_Y))
+        left.append(_w(2.0, *PARK_NC, OPEN, "aside", YAW_Y))
         return {"left": left}
-    to_c2 = arm_moves(L.C2, YAW_Y, 0.20, PARK_L)
-    left += to_c2
-    left_done = seated_at + _duration(to_c2[:-1])  # the left arm starts moving aside here
-    right = [_w(left_done, *WAIT_R[:2], WAIT_R[2], OPEN, "wait aside", YAW_XR)]
-    right += arm_moves(L.C1, YAW_XR, 0.15, PARK_R)
+    left += clamp_moves(L.C2, 0.20, PARK_L)
+    c2_done = _until(left, f"straight up off {L.C2.name}")  # the left gripper is off C2's handle and rising
+    right = [_w(c2_done, *WAIT_R[:2], WAIT_R[2], OPEN, "wait aside", ARC_YAW[L.C1.name])]
+    right += clamp_moves(L.C1, 0.17, PARK_R)
     if variant == "left_only":
         return {"left": left}
     return {"left": left, "right": right}
