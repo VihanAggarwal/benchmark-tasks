@@ -1,4 +1,4 @@
-# Swap the bit in an SDS-plus rotary hammer: sleeve held back while the old bit comes out, then the new one twisted in until it locks
+# Swap a rotary hammer's SDS-plus bit: sleeve held back to draw the old one, the new one twisted in until it locks
 
 A Bosch 11224VSRC SDS-plus rotary hammer lies loose on the bench with a 6 mm bit locked in its chuck; a 10 mm bit lies
 beside it. The robot is asked to swap them. The old bit comes out only while the chuck's locking sleeve is held back,
