@@ -180,6 +180,62 @@ class TestLatch(unittest.TestCase):
         self.assertEqual(S.latch_step(False, False, 0.001, 0.070), "click")
 
 
+class TestScabbardCatch(unittest.TestCase):
+    """The catch (task._guard_home, scoring.catch_ready) clicks only after the scabbard is slid over the bar from
+    its tip to within SEAT_TOL of the seat; a scabbard aligned anywhere else never triggers it."""
+
+    def guard_at(self, y, x=0.0, z=None):
+        return ORIGIN + [x, y, L.BAR_Z if z is None else z]
+
+    def feed(self, ys, **kw):
+        flag, clicks = False, []
+        for y in ys:
+            covered, gy = S.guard_on(S.body(st(ORIGIN)), S.body(st(self.guard_at(y, **kw))))
+            ready, flag = S.catch_ready(covered, gy, flag)
+            clicks.append(ready)
+        return clicks
+
+    def test_slid_on_from_the_tip_clicks_at_the_seat(self):
+        seat = L.GUARD_SEAT_Y
+        self.assertEqual(self.feed([seat - 0.050, seat - 0.020, seat - 0.006, seat - 0.002]),
+                         [False, False, False, True])
+
+    def test_aligned_beyond_the_housing_never_clicks(self):
+        for y in (L.GUARD_SEAT_Y + 0.15, L.GUARD_SEAT_Y + 0.25, 0.10, 0.30):
+            self.assertEqual(self.feed([y, y, y]), [False] * 3, y)
+
+    def test_slid_past_the_seat_does_not_click(self):
+        seat = L.GUARD_SEAT_Y
+        self.assertEqual(self.feed([seat - 0.030, seat + 0.010, seat + 0.050]), [False] * 3)
+
+    def test_appearing_at_the_seat_without_a_slide_does_not_click(self):
+        self.assertEqual(self.feed([L.GUARD_SEAT_Y, L.GUARD_SEAT_Y]), [False, False])
+
+    def test_off_the_bars_line_does_not_click(self):
+        seat = L.GUARD_SEAT_Y
+        self.assertEqual(self.feed([seat - 0.030, seat - 0.002], x=0.010), [False, False])
+        self.assertEqual(self.feed([seat - 0.030, seat - 0.002], z=L.BAR_Z + 0.010), [False, False])
+
+    def test_leaving_the_line_resets_the_slide(self):
+        seat = L.GUARD_SEAT_Y
+        flag = False
+        for y, x in ((seat - 0.030, 0.0), (seat - 0.030, 0.020), (seat + 0.15, 0.0), (seat - 0.002, 0.0)):
+            covered, gy = S.guard_on(S.body(st(ORIGIN)), S.body(st(self.guard_at(y, x=x))))
+            ready, flag = S.catch_ready(covered, gy, flag)
+            if x:
+                self.assertFalse(flag)
+        # the last reading is at the seat, but the scabbard was never slid on again after it left the line
+        self.assertFalse(ready)
+
+    def test_task_catch_uses_the_same_rule(self):
+        seat = L.GUARD_SEAT_Y
+        beyond = [T._guard_home(states(battery=BATTERY_DOWN, guard=self.guard_at(seat + 0.2))) for _ in range(3)]
+        self.assertEqual(beyond, [False] * 3)
+        slid = [T._guard_home(states(battery=BATTERY_DOWN, guard=self.guard_at(y)))
+                for y in (seat - 0.050, seat - 0.020, seat - 0.001)]
+        self.assertEqual(slid, [False, False, True])
+
+
 class TestLayout(unittest.TestCase):
     def test_scabbard_clears_the_chain(self):
         self.assertGreater(L.GUARD_W - 2 * L.GUARD_SIDE, 2 * L.BAR_X + 0.004)

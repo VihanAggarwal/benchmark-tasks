@@ -164,12 +164,21 @@ BATTERY_LATCH = mk.weld(BATTERY_SPEC, PRUNER_SPEC, (_f(L.BAT_HOME), _f(mk.yaw_qu
                         name="battery_latched")
 
 
+_SLIDE = {"episode": None, "on_from_tip": False}
+
+
 def _guard_home(states) -> bool:
+    """The scabbard's catch (scoring.catch_ready): it clicks only once the scabbard has been seen on the bar's line,
+    over the bar from its tip side and short of the seat, and has then been slid along the bar to within 4 mm of
+    the seat (either side). A scabbard aligned anywhere else (past the housing, off the bar) never triggers it."""
+    if _SLIDE["episode"] != mk.episode():
+        _SLIDE.update(episode=mk.episode(), on_from_tip=False)
     p, g = S.body(states[PRUNER]), S.body(states[GUARD])
     if p is None or g is None:
         return False
-    _, gy = S.guard_on(p, g)
-    return gy is not None and gy >= L.GUARD_SEAT_Y - L.SEAT_TOL
+    covered, gy = S.guard_on(p, g)
+    ready, _SLIDE["on_from_tip"] = S.catch_ready(covered, gy, _SLIDE["on_from_tip"])
+    return ready
 
 
 GUARD_CATCH = mk.weld(GUARD_SPEC, PRUNER_SPEC, ((0.0, L.GUARD_SEAT_Y, L.BAR_Z), IDENTITY), when=_guard_home,

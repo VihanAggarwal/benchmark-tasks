@@ -166,6 +166,19 @@ def latch_step(latched: bool, pressed: bool, disp: float, max_disp: float) -> st
     return ""
 
 
+def catch_ready(covered: float, gy: float | None, on_from_tip: bool) -> tuple[bool, bool]:
+    """The scabbard's catch, as a function of this step's reading and one remembered flag. Returns (click now,
+    new flag). The flag is set while the scabbard is ON the bar (covering at least 40 mm) with its centre short of
+    the seat (toward the tip), i.e. it is being slid on from the tip; it clears whenever the scabbard leaves the
+    bar's line. The catch clicks only with the flag set and the scabbard within SEAT_TOL of the seat, both sides:
+    a scabbard dropped in line beyond the seat, or aligned but not over the bar, never clicks."""
+    if gy is None:
+        return False, False
+    if covered >= L.ON_BAR and gy < L.GUARD_SEAT_Y - L.SEAT_TOL:
+        on_from_tip = True
+    return bool(on_from_tip and abs(gy - L.GUARD_SEAT_Y) <= L.SEAT_TOL), on_from_tip
+
+
 def tier(released: bool, on: bool, seated: bool, clear: bool, foul: bool) -> float:
     if foul or not released:
         return 0.0

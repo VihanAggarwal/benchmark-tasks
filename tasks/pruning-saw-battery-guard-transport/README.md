@@ -46,7 +46,9 @@ The pruner's base frame has its origin on the bench at (0.280, 0.020); all prune
 
 The battery latch (task.py, scoring.latch_step): latched from the start; free while both hook buttons are pressed in
 1.8 mm; if they are let go before the battery is drawn 8 mm, they catch it again where it is; pushed back within 2 mm
-of home with them let go, it clicks in. The scabbard's catch holds it once it is pushed home within 4 mm.
+of home with them let go, it clicks in. The scabbard's catch holds it only after it has been slid onto the bar from the tip (seen on the bar's
+line, covering at least 40 mm, short of the seat) and then pushed home to within 4 mm of the seat, from either side;
+a scabbard set down in line anywhere else (past the housing, say) never triggers it (`scoring.catch_ready`, tested).
 
 ## Scoring (scoring.py)
 
@@ -57,7 +59,7 @@ Everything is measured in the pruner's frame.
 - **On:** the scabbard on the bar's line (within 5 mm across, 4 mm in height, open end toward the housing) covering at
   least 40 mm of the bar. **Seated:** its open end within 4 mm of the bar's root (its catch).
 - **Tiers:** 1.0 battery out and released, seated, both grippers 30 mm clear of all three parts and all still
-  for 1 s (success); 0.75 seated; 0.5 on; 0.25 battery out and released; 0 otherwise.
+  for 1 s (success); 0.75 seated (battery out and released, not clear); 0.5 on; 0.25 battery out and released; 0 otherwise.
 - **Fouls (0 for the trial):** a gripper within 10 mm of a bare tooth (the bar's straight edges and the half circle
   round its nose, wherever the scabbard doesn't cover them); while the battery is in, a gripper within 10 mm of the
   trigger or 20 mm of the bar or chain, or the scabbard 10 mm or more onto the bar (fitted first, even at arm's length
