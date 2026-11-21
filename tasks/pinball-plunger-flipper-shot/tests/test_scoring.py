@@ -137,10 +137,10 @@ class TestLayout(unittest.TestCase):
 
 
 class TestDemo(unittest.TestCase):
-    def test_demo_presses_the_button_past_its_switch_point_after_launch(self):
+    def test_demo_presses_the_button_all_the_way_after_launch(self):
         p = T.plans()["right"]
         press = next(w for w in p if w.label.startswith("press"))
-        self.assertLess(press.pos[2], T.button_tcp("right", L.BUTTON_ON)[2])
+        self.assertLess(press.pos[2], T.button_tcp("right", L.BUTTON_TRAVEL)[2])
         t, times = 0.0, {}
         for w in p:
             t += w.duration

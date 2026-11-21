@@ -1,13 +1,13 @@
-"""On the station table, real size: a tabletop pinball machine (EastPoint Sports type, 483 x 330 mm) with its front
+"""On the station table, real size: an EastPoint Sports Tabletop Arcade Pinball (483 x 330 mm) with its front
 toward the robot, held to the table. Its playfield rises 6 deg away from the robot between the cabinet's side panels:
 a plunger lane along the right wall with a curved guide at its top, inlane guides down each side, and two flippers at
 the bottom either side of the drain. A spring plunger's knob sticks out of the front, and a flipper button sits on each
 front corner of the cabinet's top. A 19 mm steel ball rests in the plunger lane against the plunger.
 
 Objects (mechkit.py next to this file): the machine (a fixed mechanism: the plunger slides on a spring; each button
-slides down on a spring; each flipper turns on a hinge) and the ball (a loose sphere). One rule stands in for the
-flippers' switches and coils: a button pressed past 3.5 mm sets its flipper's drive target to raised, otherwise to
-rest. Nothing else is moved or latched by code.
+slides down on a spring; each flipper turns on a hinge) and the ball (a loose sphere). The machine has no electrics:
+each button works its flipper through a lever, and one rule stands in for those levers: a flipper's drive target is the
+angle its button's travel gives (rest with the button up, raised at 6 mm). Nothing else is moved or latched by code.
 
 Goal: launch the ball with the plunger, then flip it back up the playfield into the top lanes with a flipper, without
 a hand on the playfield. The robot has to pull the plunger back far enough (and not too far), and press the left
@@ -158,17 +158,20 @@ BALL_SPEC = Sphere(BALL, pos=tuple(float(c) for c in L.ball_start()), color=L.BA
 OBJECTS = [MACHINE_SPEC, BALL_SPEC]
 
 
-# -- the flippers' switches (the one rule) ------------------------------------------------------------------------------
+# -- the flippers' linkages (the one rule) ------------------------------------------------------------------------------
 @mk.on_step
-def _flipper_coils(states) -> None:
-    """Each flipper's coil: raised while its button is pressed past 3.5 mm, at rest otherwise."""
+def _flipper_linkages(states) -> None:
+    """The machine has no coils: each button pushes a lever that turns its flipper. The rule stands in for that lever:
+    the flipper is driven toward the angle its button's travel gives (rest at the button up, fully raised at 6 mm),
+    so it swings only as fast and as far as the button is pressed."""
     try:
         j = states[MACHINE].joints
     except Exception:  # noqa: BLE001
         return
     swing = L.FLIPPER_UP - L.FLIPPER_REST
     for button, flipper in ((LEFT_BUTTON, LEFT_FLIPPER), (RIGHT_BUTTON, RIGHT_FLIPPER)):
-        mk.set_targets(MACHINE_SPEC, flipper, swing if float(j[button]) >= L.BUTTON_ON else 0.0)
+        frac = min(1.0, max(0.0, float(j[button]) / L.BUTTON_TRAVEL))
+        mk.set_targets(MACHINE_SPEC, flipper, swing * frac)
 
 
 # -- scoring plumbing -----------------------------------------------------------------------------------------------
@@ -237,8 +240,8 @@ OPEN = -0.04695
 KNOB_GRIP = -(L.PLUNGER_KNOB_R - 0.004)
 PULL = 0.042  # m: how far the hand draws the plunger back (of its 45 mm; the arm gives a little against the spring)
 LAUNCH_AT = 6.5  # s: when the hand starts to open on the plunger
-PRESS_AT = 9.20  # s: when the right button reaches its switch point (tuned on the simulator: the ball's arrival)
-PRESS_S = 0.25
+PRESS_AT = float(os.environ.get("PINBALL_PRESS_AT", 9.20))  # s: when the button is 70% down (tuned on the simulator: the ball's arrival)
+PRESS_S = float(os.environ.get("PINBALL_PRESS_S", 0.10))  # a quick, full press: the lever flips the flipper
 VARIANTS = ("no_flip", "early_flip")
 
 
@@ -274,7 +277,7 @@ def right_plan(pull: float = PULL, press_at: float | None = PRESS_AT) -> list[Wa
     t = sum(x.duration for x in w)
     if press_at is None:
         return w + [_w(8.0, button_tcp(down=-0.03), 0.0, "wait, never pressing")]
-    start = press_at - 0.7 * PRESS_S  # the button passes its switch point about 70% of the way through the press
+    start = press_at - 0.7 * PRESS_S  # the button is 70% of the way down (the flipper most of the way up) at press_at
     w += [
         _w(max(0.2, start - t), button_tcp(down=-0.002), 0.0, "just above the button, waiting for the ball"),
         _w(PRESS_S, button_tcp(down=L.BUTTON_TRAVEL + 0.002), 0.0, "press: the flipper strikes"),

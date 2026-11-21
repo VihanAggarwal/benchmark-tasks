@@ -5,8 +5,8 @@ station table's top is TOP. The pinball machine's frame has its origin on the ta
 panel; its playfield rises 6 deg away from the robot (+x). Playfield coordinates (u, v): u up the slope from the
 playfield's front edge, v across it (+v to the robot's left), both in metres.
 
-Sources (README.md): EastPoint Sports tabletop arcade pinball (about 19 x 13 x 6 in, plunger launch, two flipper
-buttons). Its playfield layout, flipper size and travel, plunger travel and spring, the ball and every friction are
+Sources (README.md): the EastPoint Sports Tabletop Arcade Pinball (UPC 840281714605; 19 x 13 x 6 in, 1.8 lb; no
+electrics: a spring plunger and two flipper buttons that work the flippers through levers). Its playfield layout, flipper size and travel, plunger travel and spring, the ball and every friction are
 estimates (task.json "fidelity").
 """
 
@@ -83,9 +83,8 @@ FLIPPER_W = 0.012
 FLIPPER_H = 0.018  # tall, standing 3 mm off the playfield
 FLIPPER_REST = math.radians(-28.0)  # each tip angled down toward the centre (drain gap between them)
 FLIPPER_UP = math.radians(28.0)  # raised
-FLIPPER_SPRING = 1.0  # N m/rad: the flipper's coil drives it toward its target (a rule stands in for the switch)
+FLIPPER_SPRING = 1.0  # N m/rad: holds the flipper to the angle its button's lever gives (the linkage rule)
 BUTTON_TRAVEL = 0.006  # the buttons on the cabinet's top front corners press down 6 mm
-BUTTON_ON = 0.0035  # past 3.5 mm the switch closes and the flipper flies up
 BUTTON_SPRING = 400.0  # N/m (est.)
 BUTTON_R = 0.011
 BUTTON_X = 0.025  # on the front deck's top, from the front panel

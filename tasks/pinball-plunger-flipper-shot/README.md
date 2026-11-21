@@ -19,8 +19,10 @@ The hand also has to get from the plunger to the button in the time the ball tak
 
 ## Sources
 
-- Machine: EastPoint Sports tabletop arcade pinball: about 19 x 13 x 6 in, a spring plunger and two flipper buttons
-  (retailer listings, e.g. https://www.target.com/p/arcade-pinball/-/A-94628600).
+- Machine: the EastPoint Sports Tabletop Arcade Pinball (UPC 840281714605; Target DPCI 091-14-7737,
+  https://www.target.com/p/arcade-pinball/-/A-94628600): 19 x 13 x 6 in assembled, 1.8 lb, supplied with 13 balls. It
+  has no electrics ("This game is not electronic"): a spring plunger launches the ball, and each of the two flipper
+  buttons works its flipper through a lever.
 
 Every figure not listed above is an estimate (task.json "fidelity"): the playfield's layout (lane, top guides, inlane
 guides, flipper positions), the flippers' size and 56-degree throw, the plunger's 45 mm travel and 300 N/m spring, the
@@ -36,13 +38,14 @@ is built from boxes and cylinders in task.py.
 | Plunger lane | along the right wall (y -0.140), 330 mm long; curved guide at the top right |
 | Flippers | pivots 75 mm up the playfield at y +/-0.068; 60 mm long, tips 28 degrees down, 30 mm drain gap; 56-degree throw |
 | Plunger knob | x 0.154 (at rest), y -0.140, 48 mm up; drawn back toward the robot |
-| Flipper buttons | on the front deck's top, x 0.225, y +/-0.143; 6 mm travel, fire at 3.5 mm |
+| Flipper buttons | on the front deck's top, x 0.225, y +/-0.143; 6 mm travel: the flipper's angle follows the button |
 | Top lanes' line | 330 mm up the playfield |
 | Ball | 19 mm steel, in the plunger lane against the plunger |
 
 The machine is a fixed mechkit mechanism: the plunger slides on a spring, each button slides down on a spring, and
-each flipper turns on a hinge. One rule stands in for each flipper's switch and coil: a button pressed past 3.5 mm
-drives its flipper up through a stiff spring, and releasing it lets the flipper fall back. The ball is a loose
+each flipper turns on a hinge. One rule stands in for each flipper's lever: the flipper is driven (through a stiff
+spring) toward the angle its button's travel gives, rest with the button up and fully raised at 6 mm, so it swings as
+fast and as far as the button is pressed. The ball is a loose
 sphere. Nothing else is moved or latched by code.
 
 ## Scoring (scoring.py)
@@ -68,9 +71,9 @@ are read off the video frame by frame.
 Open loop, the right arm only; the left stays parked. A straight-down grip on the plunger's knob, the pads either side
 of it. The hand draws the plunger back 42 mm (the arm gives a little against the spring), and then opens: the ball
 runs up the lane to the top and rolls back down the right side, where the inlane guide sends it across the right
-flipper. Meanwhile the same hand, closed, moves over the right flipper button. It presses the button to its switch
-point at 9.2 s, the moment the ball reaches the flipper, timed from the launch on the simulator. It holds the button
-0.6 s and lets it up. The flipper strikes the ball back up the playfield into the top lanes.
+flipper. Meanwhile the same hand, closed, moves over the right flipper button. It presses the button all the way
+down in 0.1 s, 70% down at 9.2 s, the moment the ball reaches the flipper, timed from the launch on the simulator. It
+holds the button 0.6 s and lets it up. The flipper strikes the ball back up the playfield into the top lanes.
 
 Counterfactual variants (DEMO_VARIANT, never the submitted demo): `no_flip` launches and never presses a button (the
 ball drains, 0.25), and `early_flip` presses and releases 0.9 s too early.
@@ -94,16 +97,16 @@ inspect-robots run --embodiment yam_arena --policy dream -E task=$PWD/task.py -E
 `TASK_TRACE=<file>` writes one JSON line per control step. No seeds: the layout is fixed (`object_jitter=0`).
 Offline tests (no simulator): `PYTHONPATH=<yam-isaac-lab-arena checkout> python3 -m unittest discover -s tests -v`.
 
-Runtime per trial on an L40S: about 30 s for the scripted demo (15 s to start Isaac Sim, then 215 steps to success)
+Runtime per trial on an L40S: about 30 s for the scripted demo (15 s to start Isaac Sim, then 193 steps to success)
 and about 4 minutes for a Dream-1 run of 800 steps (the policy is queried over the network each step).
 
 ## Results
 
 | Run | Score | Steps |
 |---|---|---|
-| Scripted demo | 1.0 (launched; the right flipper struck the ball at 0.6 m/s up the slope; it reached 342 mm, past the top lanes' line) | 215 (success) |
+| Scripted demo | 1.0 (launched; the right flipper struck the ball at 0.7 m/s up the slope; it reached 385 mm, past the top lanes' line) | 193 (success) |
 | Dream-1 | 0.0 (the ball was never launched) | 800 (the limit) |
 | `no_flip` | 0.25 (launched, drained) | 390 |
-| `early_flip` | 0.25 (the flipper was down again when the ball arrived; drained) | 377 |
+| `early_flip` | 0.25 (the flipper was down again when the ball arrived; drained) | 374 |
 
 The demo scored the same on two runs.
