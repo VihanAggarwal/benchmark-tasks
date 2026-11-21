@@ -177,7 +177,7 @@ class Tracker:
             sleeve = float(states[HAMMER].joints["sleeve"])
         except (AttributeError, KeyError, TypeError, ValueError):
             sleeve = math.inf  # unreadable: the lock can't be confirmed
-        locked = (sn.in_bore and sn.depth >= L.DEPTH - L.HOME_TOL and sn.roll <= L.KEY_TOL
+        locked = (sn.in_bore and abs(sn.depth - L.DEPTH) <= L.HOME_TOL and sn.roll <= L.KEY_TOL
                   and sleeve < L.SLEEVE_FREE)
         gaps = {"old": math.inf, "kit": math.inf}
         points = gripper_samples(arms)

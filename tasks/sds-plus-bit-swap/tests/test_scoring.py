@@ -97,6 +97,9 @@ class TestScoring(unittest.TestCase):
         self.assertFalse(r.details["locked"])
         self.assertEqual(r.score, 0.5)
 
+    def test_a_bit_on_the_axis_beyond_home_is_not_locked(self):
+        self.assertFalse(score(states(old=OLD_DOWN, new=bit_at(L.DEPTH + 0.010, L.NEW_ROLL))).details["locked"])
+
     def test_new_bit_home_with_slots_off_the_keys_is_not_locked(self):
         self.assertFalse(score(states(old=OLD_DOWN, new=bit_at(L.DEPTH, 0.0))).details["locked"])
 

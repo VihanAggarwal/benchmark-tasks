@@ -203,8 +203,8 @@ def _chuck(states) -> None:
             seats.append(st)
         if lock.active and sleeve >= L.SLEEVE_FREE:
             lock.release()
-        elif (not lock.active and sleeve < L.SLEEVE_FREE and st.in_bore and st.depth >= L.DEPTH - L.HOME_TOL
-              and st.roll <= L.KEY_TOL):
+        elif (not lock.active and sleeve < L.SLEEVE_FREE and st.in_bore and abs(st.depth - L.DEPTH) <= L.HOME_TOL
+              and st.roll <= L.KEY_TOL):  # home: within 2 mm of 40 mm deep, either side
             lock.fire(states, rel_pose=snapped(hammer, b, off))
     _RULES["keys_target"] = 0.0 if keys_open(seats) else L.KEY_TRAVEL
     mk.set_targets(HAMMER_SPEC, KEYS, _RULES["keys_target"])
