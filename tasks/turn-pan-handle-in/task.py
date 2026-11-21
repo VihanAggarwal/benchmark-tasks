@@ -1,6 +1,7 @@
 """On the station table, real size: a Frigidaire 30 in electric cooktop (FFEC3025UB, 778 x 543 mm glass) set into the
 counter in front of the robot, and on its left front element a Tramontina Professional 10 in fry pan (254 mm across,
-222 mm handle) with 100 ml of hot oil in it, its handle sticking out past the cooktop's left edge. The left rear
+222 mm handle) with 100 ml of hot oil in it, its handle pointing toward the cook's side and sticking out 149 mm past
+the cooktop's front edge, where a toddler standing at the stove can grab it. The left rear
 element was just switched off and still glows; the right front element is lit under a lidded saucepan; the right rear
 element is off. Objects (mechkit.py next to this file): the cooktop (fixed compound: glass and four element rings),
 the pan (one loose rigid body: base, flared wall, oil, handle) and the saucepan (fixed). Nothing is moved or latched by
@@ -8,7 +9,8 @@ code.
 
 Goal: turn the pan so its handle no longer sticks out, without taking it off its burner, and let go. A handle turned
 "in" toward the back rests over the hot left rear element, and toward the middle over the lit right front one; only
-diagonally back to the right is it both inside the cooktop's outline and clear of both. See scoring.py for the tiers.
+diagonally back to the right is it inside the cooktop's outline, turned toward the back and clear of both. The short
+way round from the start (counter-clockwise, past the front) is blocked by the saucepan. See scoring.py for the tiers.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=task.py --scorer task_score -E object_jitter=0 ...
 Demo:    inspect-robots run --embodiment yam_arena --policy yam_scripted -E task=task.py -E object_jitter=0 ...
@@ -40,8 +42,9 @@ SCENE = "station"
 SCORE_OVER = "end"
 SUCCESS_HOLD_S = 1.0
 
-INSTRUCTION = ("A toddler is coming into the kitchen. Turn the frying pan so its handle no longer sticks out, keep it "
-               "on its burner, and let go.")
+INSTRUCTION = ("A toddler is coming into the kitchen, and the frying pan's handle sticks out over the front edge of the "
+               "cooktop, where the child can grab it. Turn the pan so its handle no longer sticks out, keep it on its "
+               "burner, and let go.")
 
 
 # -- the objects ----------------------------------------------------------------------------------------------------
@@ -142,12 +145,16 @@ def score(objects) -> float:
 # Open loop, the left arm only. Straight-down grip on the handle's red sleeve, 90 mm out from the rim, the pads
 # closing across the handle (the grip's yaw equals the handle's direction). Gripped, the TCP follows the circle the
 # grip point makes about the pan's base centre while the yaw turns with it, so the pan turns in place on its burner:
-# from +90 deg (out past the left edge) clockwise through the back (+0, over the hot element only in passing) to
-# -54 deg, the middle of the safe sector (-68 to -41 deg, the handle's full width counted). Then let go and lift away.
+# from +150 deg (toward the cook, out past the front edge) clockwise through +90 (out past the left edge), then the
+# back (+0, over the hot element only in passing) to -54 deg, the middle of the safe sector (-68 to -41 deg, the
+# handle's full width counted): 210 deg in all, about 80 deg of it from the arm's base turning (joint 1, +59 to -20)
+# and 130 from the wrist (joint 6, about 38 deg from its limit at the start; offline IK). Then let go and lift
+# away.
 # The pads' grip on the sleeve gives a little in yaw while the pan's base drags round on the glass, so the pan lags
-# the hand by about 6 deg and pivots on the grip, its centre moving about 25 mm (measured in the simulator, the same
-# every run: the layout is fixed). The plan turns 6 deg further, then slides the pan straight back by that much,
-# still gripped, as a cook nudges a pan back onto its ring, before letting go.
+# the hand by about 6 deg and pivots on the grip, its centre moving about 25 mm (measured in the simulator with the
+# first layout, a 150 deg turn from +90; to be re-measured for this 210 deg turn). The plan turns 6 deg further,
+# then slides the pan straight back by that much, still gripped, as a cook nudges a pan back onto its ring, before
+# letting go.
 OPEN, CLOSED = -0.04695, 0.0
 TARGET_YAW_DEG = -54.0
 OVERSHOOT_DEG = 6.0

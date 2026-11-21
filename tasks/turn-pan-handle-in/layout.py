@@ -25,8 +25,8 @@ CONTROL_HZ = 20.0
 COOK_W = 30.625 * INCH  # 0.778 m across (along y)
 COOK_D = 21.375 * INCH  # 0.543 m deep (along x)
 COOK_T = 0.006  # glass proud of the counter (the table top)
-COOK_FRONT_X = 0.070  # its front edge, 70 mm in front of the arm bases' line
-COOK_CY = 0.0
+COOK_FRONT_X = 0.100  # its front edge (the cook's side), 100 mm in front of the arm bases' line
+COOK_CY = 0.170  # its middle, 170 mm to the robot's left of the midpoint between the arm bases
 COOKTOP_TOP = COOK_T  # above the table top
 GLASS = (0.06, 0.06, 0.07)
 
@@ -38,12 +38,12 @@ def cook_bounds():
 
 # Elements: name -> (centre x, centre y, radius, state). Robot's left is +y (the cook's left facing the cooktop).
 # Centres estimated from the maker's layout drawing proportions: front elements 150 mm behind the front edge, rear
-# elements 380 mm behind it; left and right pairs about 200 mm either side of the centre line.
+# elements 380 mm behind it; left and right pairs about 200 mm either side of the cooktop's centre line.
 ELEMENTS = {
-    "left_front": (COOK_FRONT_X + 0.150, +0.200, 3.0 * INCH, "pan"),  # 6 in: the frying pan's
-    "left_rear": (COOK_FRONT_X + 0.380, +0.195, 4.5 * INCH, "hot"),  # 9 in: just switched off, still hot
-    "right_front": (COOK_FRONT_X + 0.150, -0.195, 4.5 * INCH, "lit"),  # 6/9 in: lit, a saucepan simmering
-    "right_rear": (COOK_FRONT_X + 0.380, -0.200, 3.0 * INCH, "off"),  # 6 in: off and cold
+    "left_front": (COOK_FRONT_X + 0.150, COOK_CY + 0.200, 3.0 * INCH, "pan"),  # 6 in: the frying pan's
+    "left_rear": (COOK_FRONT_X + 0.380, COOK_CY + 0.195, 4.5 * INCH, "hot"),  # 9 in: just switched off, still hot
+    "right_front": (COOK_FRONT_X + 0.150, COOK_CY - 0.195, 4.5 * INCH, "lit"),  # 6/9 in: lit, a saucepan simmering
+    "right_rear": (COOK_FRONT_X + 0.380, COOK_CY - 0.200, 3.0 * INCH, "off"),  # 6 in: off and cold
 }
 ELEMENT_OFF = (0.16, 0.16, 0.17)  # the printed ring of a cold element
 ELEMENT_HOT = (0.85, 0.20, 0.06)  # glowing red-orange
@@ -76,7 +76,11 @@ PAN_FRICTION = (0.30, 0.25)  # aluminium base on glass ceramic (est.)
 WALL_SEGMENTS = 20
 
 PAN_ELEMENT = "left_front"
-PAN_START_YAW = math.radians(90.0)  # the handle points to the robot's left, out past the cooktop's left edge
+# The handle points toward the cook's side (the robot), 30 deg to its left of straight forward: its end sticks out
+# 149 mm past the cooktop's FRONT edge, where a child standing at the stove can reach it, and stays 10 mm inside the
+# left edge (its full width). It clears the left arm's base by about 7 cm. (Revision 2: it pointed +y, out past the
+# left edge, which read as out of a child's reach.)
+PAN_START_YAW = math.radians(150.0)
 
 # -- scoring -----------------------------------------------------------------------------------------------------------
 HANDLE_SAMPLES = 12  # points along the handle, rim to end (on its centre line and on both side edges)
@@ -133,13 +137,18 @@ def grip_point() -> np.ndarray:
 
 
 def safe_plan(points_xy: np.ndarray) -> tuple[bool, bool, str | None]:
-    """For the handle's points seen from above (world x, y; its centre line and both side edges): (inside the
-    cooktop's outline, clear of every hot element, the first problem found)."""
+    """For the handle's points seen from above (world x, y; its centre line, rim to end, then both side edges, as
+    handle_outline() orders them): (inside the cooktop's outline and turned toward the back, clear of every hot
+    element, the first problem found). Turned toward the back: the handle's end is farther from the front edge than
+    where the handle leaves the pan (a handle still pointing toward the cook's side is not turned in, even inside
+    the outline)."""
     x0, x1, y0, y1 = cook_bounds()
     pts = np.asarray(points_xy, dtype=float)
-    inside = bool(np.all((pts[:, 0] >= x0 + EDGE_MARGIN) & (pts[:, 0] <= x1 - EDGE_MARGIN)
+    within = bool(np.all((pts[:, 0] >= x0 + EDGE_MARGIN) & (pts[:, 0] <= x1 - EDGE_MARGIN)
                          & (pts[:, 1] >= y0 + EDGE_MARGIN) & (pts[:, 1] <= y1 - EDGE_MARGIN)))
-    problem = None if inside else "handle past the cooktop's edge"
+    back = bool(pts[HANDLE_SAMPLES - 1, 0] > pts[0, 0])
+    inside = within and back
+    problem = None if within else "handle past the cooktop's edge"
     clear = True
     for name, (cx, cy, r, state) in ELEMENTS.items():
         if state not in HOT_STATES:
@@ -148,6 +157,8 @@ def safe_plan(points_xy: np.ndarray) -> tuple[bool, bool, str | None]:
         if np.any(d < r + HOT_MARGIN):
             clear = False
             problem = problem or f"handle over the {state} {name.replace('_', ' ')} element"
+    if not back:
+        problem = problem or "handle not turned toward the back"
     return inside, clear, problem
 
 

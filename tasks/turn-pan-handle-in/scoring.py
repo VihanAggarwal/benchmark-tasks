@@ -5,8 +5,10 @@ frying pan (a loose mechkit compound: base, flared wall, oil and handle as one r
 rigstate. Plan views are world x, y.
 
     HANDLE_SAFE  every point of the handle (its centre line and both side edges, rim to end, 36 points) is inside the
-                 cooktop's outline seen from above, AND at least 20 mm outside the ring of each hot element (the left
-                 rear, just switched off and still hot, and the right front, lit under a saucepan)
+                 cooktop's outline seen from above, the handle is turned toward the back (its end farther from the
+                 front edge than where it leaves the pan), AND every point is at least 20 mm outside the ring of each
+                 hot element (the left rear, just switched off and still hot, and the right front, lit under a
+                 saucepan)
     CENTRED      the pan's base centre within 30 mm (in plan) of its element's centre
     FLAT         the pan within 3 deg of level with its base within 4 mm of the glass
     CLEAR        rigstate.released with the pan's own distance: both grippers' finger zones 30 mm or more from the
