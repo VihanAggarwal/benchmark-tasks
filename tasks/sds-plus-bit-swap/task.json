@@ -1,0 +1,20 @@
+{
+  "title": "Swap the bit in an SDS-plus rotary hammer: sleeve held back while the old bit comes out, then the new one twisted in until it locks",
+  "category": "Societal relatability",
+  "keywords": [
+    "rotary hammer",
+    "SDS-plus",
+    "bit change",
+    "hidden alignment",
+    "bimanual",
+    "tool chuck"
+  ],
+  "instruction": "Swap the drill bit in the rotary hammer for the 10 mm bit on the bench.",
+  "context": "Changing a drill bit is one of the most familiar jobs in any workshop or home: drilling into a wall to hang a shelf, then swapping bits for the next hole. On an SDS-plus hammer drill the old bit comes out only while the chuck's locking sleeve is held back, so one hand holds the sleeve while the other draws the bit; the new bit goes in only with its two drive slots on the chuck's hidden keys, so it has to be twisted while pushed (Bosch: 'Insert accessory into the tool holder ... while twisting and pushing inward until it locks automatically into place').",
+  "setup": "Positions in cm from the midpoint between the arm bases: x forward, y to the robot's left, heights above the bench. A Bosch 11224VSRC 7/8 in SDS-plus rotary hammer (15 in / 38.1 cm long, 7.9 lb / 3.58 kg; unplugged, its cord coiled behind it) lies loose on its left side with its chuck pointing at the robot: the dust cap's face at (30, 0), the chuck's axis 3.8 cm above the bench along x, the housing stretching away to x 68, its top facing the robot's right and its pistol grip, at the back (x 60 to 64.5), pointing left. The chuck: a black rubber dust cap shaped as a cone (24 mm across at its mouth, closing round a 10 mm shank), then the tool holder's bore, 40 mm deep, whose two drive keys let a shank past 12 mm only with its slots on them, and a 45 mm black locking sleeve round it that slides 8 mm back toward the housing against its spring. In the chuck, locked: a 6 x 210 mm SDS-plus bit (10 mm shank, 6 mm fluted body), its tip at x 13. On the bench: a 10 x 160 mm SDS-plus bit lying along x, its centre at (20, -11), shank end toward the hammer, its drive slots turned 45 degrees off the keys. Nothing else is on the bench; the screenshot shows the start.",
+  "scoring": "Read from overhead and side videos, in the hammer's own frame. Old out: the 6 mm bit's shank end at least 12 mm in front of the dust cap (or 2 cm off the chuck's axis); released: no gripper within 3 cm of it. Started: the 10 mm bit's shank in the bore at least 10 mm (its end within 3 mm of the axis, the bit within 6 degrees of it). Locked: the 10 mm bit pushed home (within 2 mm of 40 mm deep) with its slots on the keys and the sleeve let go; it then stays in against a 20 N pull (real trial: a spring scale, as Bosch says to check by pulling). 1.0: old out and released, new bit locked, both grippers 3 cm clear of the hammer and both bits, all still for 1 s. 0.75: locked but not clear. 0.5: old out and released, new bit started. 0.25: old out and released. 0 otherwise (the untouched start), and 0 if the hammer goes off the bench.",
+  "run_limit": "1,800 steps (90 s at 20 Hz)",
+  "reset_notes": "The 6 mm bit pushed back in until it locks; the 10 mm bit back on its spot with its slots turned 45 degrees off (a pencil mark on its shank); the hammer on its marks. Real trials: the bits' carbide tips and flute edges wrapped in tape to spare the gripper pads; the shanks left bare.",
+  "fidelity": "Rigid hammer and bits; the chuck, sleeve and cap sizes are estimates from photographs. Rules: a bit is held (its pose rewritten each step) while the sleeve is under 6 mm back, and locks once pushed home with its slots on the keys; the keys are a gate that bars a shank at 12 mm unless its slots are within 8 degrees. Sleeve spring 4.8 N (est.); the bore has 1 mm of play; the cord is not modelled.",
+  "scores": "Dream-1 run: 0.0 (1,800 steps, the run limit); demo: 1.0 (scripted, success at step 629)"
+}
