@@ -16,5 +16,6 @@
   "run_limit": "1,800 steps (90 s at 20 Hz)",
   "reset_notes": "The 6 mm bit pushed back in until it locks; the 10 mm bit back on its spot with its slots turned 45 degrees off (a pencil mark on its shank); the hammer on its marks. Real trials: the bits' carbide tips and flute edges wrapped in tape to spare the gripper pads; the shanks left bare.",
   "fidelity": "Rigid hammer and bits; the chuck, sleeve and cap sizes are estimates from photographs. Rules: a bit is held (its pose rewritten each step) while the sleeve is under 6 mm back, and locks once pushed home with its slots on the keys; the keys are a gate that bars a shank at 12 mm unless its slots are within 8 degrees. Sleeve spring 4.8 N (est.); the bore has 1 mm of play; the cord is not modelled.",
-  "scores": "Dream-1 run: 0.0 (1,800 steps, the run limit); demo: 1.0 (scripted, success at step 629)"
+  "scores": "Dream-1 run: 0.0 (1,800 steps, the run limit); demo: 1.0 (scripted, success at step 629)",
+  "media": "M-WLY28F"
 }
