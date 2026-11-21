@@ -16,5 +16,6 @@
   "run_limit": "1,800 steps (90 s at 20 Hz)",
   "reset_notes": "Battery pushed back into the handle until it clicks, scabbard off and back on its spot, pruner on its marks. Real trials: the chain's teeth ground blunt and the motor disconnected, the battery and its locking hooks unchanged.",
   "fidelity": "Rigid pruner, battery and scabbard; shapes and the sizes the maker does not publish are estimates from photographs. The hooks are sprung buttons (3.75 N), the hood a sprung hinge. Latches are rules that rewrite the part's pose each step: the battery is free while both hooks are pressed 1.8 mm (caught again if let go within 8 mm), and the scabbard's catch holds it once pushed home within 4 mm.",
-  "scores": "Dream-1 run: 0.0 (1,800 steps, the run limit); demo: 1.0 (scripted, success at step 423)"
+  "scores": "Dream-1 run: 0.0 (1,800 steps, the run limit); demo: 1.0 (scripted, success at step 423)",
+  "media": "M-RCL4UH"
 }
