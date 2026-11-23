@@ -3,18 +3,21 @@
 World frame: x forward from the line through the two arm bases, y to the robot's left, z up. The arm bases stand at
 x 0, y +-0.305; the station's table top is at z 0.7475. Heights below are ABOVE THE TABLE TOP unless named *_W.
 
-Scene (sources in README.md; "est" marks a figure not read at a source):
-- A desktop cross-cut paper shredder head assembly (Fellowes Powershred 60Cs class: 230 mm / 9 in feed throat,
-  manual Safety Lock slide switch, top power rocker switch) resting on a 6 cm benchtop riser collar (est), loose on
-  four rubber feet (1.4 kg est): 210 mm (x) x 320 mm (y) x 115 mm (z) main deck.
-- A recessed feed slot (230 mm along y, 8 mm wide along x, 45 mm deep) at x 29.5 cm, lined with silicone friction pads
-  calibrated to 4.5 N vertical extraction resistance.
-- A green-lit bistable power rocker switch (30 x 22 mm, hinged about y, starts ON at +12 deg, snaps OFF to -12 deg
-  with 3.5 N at the press point) on the left-front top deck at (x 21.5, y +10.0 cm).
-- An orange bistable Safety Lock slide switch (14 x 24 x 14 mm thumb tab, 20 mm travel along +x, 3.5 N detent) on the
-  right-front top deck at (x 20.5, y -9.0 cm), starting at 0 mm (UNLOCKED) and sliding to +20 mm (LOCKED).
-- A rigid 3-ply corrugated cardboard mailer (4 mm thick x 160 mm wide x 120 mm tall, 45 g, est) jammed 45 mm deep
-  in the feed slot (bottom at z 7.0 cm, top at z 19.0 cm, protruding 75 mm above the deck).
+Scene (sources in README.md; "est" marks a figure not read at a source). Controls follow the Fellowes Powershred 60Cs
+manual (key: "F. Disconnect power switch", "H. Control switch": Reverse / OFF / Auto-On; paper jam steps "Set to
+Off (O) and unplug" then "Gently pull uncut paper from paper entry"):
+- A desktop cross-cut shredder head (60Cs class) on a 4 cm benchtop riser collar (est), loose on four rubber feet
+  (1.4 kg est): 210 mm (x) x 320 mm (y) x 95 mm (z) deck.
+- A recessed feed slot (230 mm along y (est; the manual gives 222 mm paper width), 8 mm wide along x, 40 mm deep) at
+  x 27.5 cm, lined with silicone friction pads calibrated to 4.5 N vertical extraction resistance.
+- The 3-position control slide switch (manual item H: Reverse | O | Auto-On) on the front of the top deck at
+  (x 19.0, y -9.0 cm): its knob starts at Auto-On (0 mm) and slides along +y to O (10 mm) and Reverse (20 mm).
+- The disconnect power rocker (manual item F: I ON / O OFF) on the rear-right top deck at (x 31.8, y -11.5 cm),
+  starting ON. Modelled, not scored (the manual's jam steps use the control switch and the plug).
+- The mains cord: from the shredder's rear face along the table to a molded plug (NEMA 1-15P class, est) seated in
+  an unpowered benchtop outlet block at (x 33.0, y 21.5 cm), outlet face toward +y; the plug pulls out along +y.
+- A rigid 3-ply corrugated cardboard mailer (4 x 160 x 105 mm, 45 g, est) jammed 40 mm deep in the feed slot
+  (bottom at z 5.5 cm, top at z 16.0 cm, protruding 65 mm above the deck).
 - A grey discard tray (outer 220 x 160 x 20 mm, 4 mm walls, 3 mm floor, est) fixed at (x 26.0, y -27.5 cm) on the
   robot's right.
 """
@@ -42,7 +45,7 @@ SHRED_DECK_Z = SHRED_SIZE[2]  # 0.095 m above table
 SHRED_MASS = 1.40  # kg (head + benchtop riser collar, est)
 SHRED_FRICTION = (0.85, 0.75)  # rubber feet on bench (est)
 
-# feed slot (Fellowes Powershred 60Cs: 230 mm / 9 in throat width)
+# feed slot (60Cs class; the manual gives 222 mm max paper width; 230 mm entry est)
 SLOT_X = 0.275
 SLOT_W = 0.008  # 8 mm wide along x (2 mm clearance each side of 4 mm mailer)
 SLOT_LEN = 0.230  # 230 mm along y
@@ -50,40 +53,43 @@ SLOT_Y = (SHRED_XY[1] - SLOT_LEN / 2, SHRED_XY[1] + SLOT_LEN / 2)  # -0.105 .. +
 SLOT_DEPTH = 0.040  # 40 mm deep below deck
 SLOT_FLOOR_Z = SHRED_DECK_Z - SLOT_DEPTH  # 0.055 m above table
 
-# -- green-lit power rocker switch (hinged about -Y on shredder base; starts ON at +12 deg) ------------------------
-ROCKER_XY = (0.195, 0.105)  # left-front top deck
+# -- disconnect power rocker (manual item F; hinged about -Y on shredder base; starts ON at +12 deg; not scored) ----
+ROCKER_XY = (0.318, -0.115)  # rear-right top deck, behind the feed slot (manual figure: top rear right)
 ROCKER_BEZEL_OUT = (0.034, 0.026)
 ROCKER_BEZEL_IN = (0.031, 0.023)
 ROCKER_BEZEL_H = 0.002
-ROCKER_SIZE = (0.030, 0.022, 0.006)  # x, y, z (1550-series 30 x 22 mm rocker class)
+ROCKER_SIZE = (0.030, 0.022, 0.006)  # x, y, z (30 x 22 mm rocker class, est)
 ROCKER_PIVOT_Z = SHRED_DECK_Z - 0.0025  # 0.0925 m above table
 ROCKER_TILT_DEG = 12.0  # starts at +12 deg (ON); snaps to -12 deg (OFF)
 ROCKER_TRAVEL_DEG = 2.0 * ROCKER_TILT_DEG  # 24 deg total joint travel (0 = ON, 24 deg = OFF)
 ROCKER_CENTRE_DEG = ROCKER_TILT_DEG  # 12 deg dead-centre
 ROCKER_PRELOAD_DEG = 3.0
-ROCKER_OFF_THRESHOLD_DEG = -8.0  # rocker_deg <= -8 deg counts as OFF (joint >= 20 deg)
+ROCKER_OFF_THRESHOLD_DEG = -8.0  # rocker_deg <= -8 deg reads as OFF (reported only)
 ROCKER_PRESS_U = 0.011  # press point 11 mm toward -x (OFF end) from pivot
-ROCKER_FORCE_N = 3.5  # N at the press point to snap past centre (1550-series class)
+ROCKER_FORCE_N = 3.5  # N at the press point to snap past centre (est)
 ROCKER_K = ROCKER_FORCE_N * ROCKER_PRESS_U / math.radians(ROCKER_TILT_DEG + ROCKER_PRELOAD_DEG)
 ROCKER_MASS = 0.006
 ROCKER_DAMP = 0.0005
 
-# -- orange Safety Lock slide switch (slider along +X on shredder base; 0 mm UNLOCKED -> 20 mm LOCKED) -------------
-LOCK_XY = (0.190, -0.090)  # right-front top deck (rest / UNLOCKED centre)
-LOCK_TRAVEL = 0.020  # 20 mm along +X to LOCKED
-LOCK_MID = 0.010  # 10 mm bistable detent midpoint
-LOCK_PRELOAD = 0.004  # 4 mm preload past stop
-LOCK_FORCE_N = 3.5  # N at the detent midpoint
-LOCK_K = LOCK_FORCE_N / (LOCK_MID + LOCK_PRELOAD)  # 250 N/m
-LOCK_MASS = 0.008
-LOCK_DAMP = 4.0  # N s / m
-LOCK_TAB = (0.014, 0.024, 0.014)  # x, y, z thumb slider tab
-LOCK_TAB_Z0 = SHRED_DECK_Z + 0.001  # bottom 1 mm above deck
-LOCK_TAB_Z1 = LOCK_TAB_Z0 + LOCK_TAB[2]  # 0.110 m above table
-LOCK_TRACK_X = (LOCK_XY[0] - 0.012, LOCK_XY[0] + LOCK_TRAVEL + 0.012)  # 0.178 .. 0.222
-LOCK_TRACK_Y = (LOCK_XY[1] - 0.016, LOCK_XY[1] + 0.016)  # -0.106 .. -0.074
-LOCK_TRACK_H = 0.003
-LOCK_ON_THRESHOLD = 0.017  # >= 17 mm counts as LOCKED
+# -- control slide switch (manual item H: Reverse | O | Auto-On; slider along +Y on shredder base) -----------------
+# Seen from the front (the robot's side) Reverse is on the left (+y), O in the middle and Auto-On on the right (-y).
+CTRL_XY = (0.190, -0.090)  # knob centre at Auto-On (0 mm), front of top deck
+CTRL_TRAVEL = 0.020  # 0 mm Auto-On, 10 mm O (OFF), 20 mm Reverse (est spacing)
+CTRL_OFF_POS = 0.010  # O detent
+CTRL_AUTO_EDGE = 0.004  # below 4 mm the knob springs back to Auto-On
+CTRL_REV_EDGE = 0.016  # at or past 16 mm it snaps to Reverse; between 4 and 16 mm it centres on O
+CTRL_PRELOAD = 0.004  # 4 mm preload past each end stop
+CTRL_FORCE_N = 3.5  # N to leave Auto-On (at the 4 mm edge) (est)
+CTRL_K = CTRL_FORCE_N / (CTRL_AUTO_EDGE + CTRL_PRELOAD)  # 437.5 N/m
+CTRL_MASS = 0.008
+CTRL_DAMP = 4.0  # N s / m
+CTRL_KNOB = (0.024, 0.014, 0.012)  # x (across), y (along travel), z
+CTRL_KNOB_Z0 = SHRED_DECK_Z + 0.001  # bottom 1 mm above deck
+CTRL_KNOB_Z1 = CTRL_KNOB_Z0 + CTRL_KNOB[2]  # 0.108 m above table
+CTRL_TRACK_X = (CTRL_XY[0] - 0.016, CTRL_XY[0] + 0.016)  # 0.174 .. 0.206
+CTRL_TRACK_Y = (CTRL_XY[1] - 0.012, CTRL_XY[1] + CTRL_TRAVEL + 0.012)  # -0.102 .. -0.058
+CTRL_TRACK_H = 0.003
+CTRL_OFF_BAND = (0.007, 0.013)  # knob within 7..13 mm reads as O (OFF)
 
 # -- brace area on left front deck ---------------------------------------------------------------------------------
 BRACE_XY = (0.190, 0.150)  # left arm braces here during mailer extraction
@@ -99,6 +105,23 @@ MAILER_Z1 = MAILER_Z0 + MAILER_SIZE[2]  # 0.160 m above table (protrudes 65 mm a
 MAILER_ORIGIN = (MAILER_X, MAILER_Y, MAILER_Z0 + MAILER_SIZE[2] / 2)  # (0.275, -0.025, 0.1075)
 JAM_FORCE_N = 4.5  # N calibrated vertical extraction force
 JAM_TORQUE_NM = 0.45  # N m break torque for the jam bond
+
+# -- unpowered benchtop outlet block and the shredder's mains plug (fixed assembly + plug slider along +Y) --------
+# Same build as tasks/immersion-blender-unplugged-before-blade-wand-detached (GPU demo pulled it to 35 mm).
+OUTLET_C = (0.330, 0.215)  # block centre (x 33 cm, y 21.5 cm), 10 mm left of the shredder's left wall
+OUTLET_SIZE = (0.040, 0.070, 0.052)  # x, y, z (est)
+OUTLET_FACE_Y = OUTLET_C[1] + OUTLET_SIZE[1] / 2  # 0.250 m (+y face)
+PLUG_SIZE = (0.026, 0.028, 0.030)  # x (pinched width), y (pull depth), z (height) (est)
+PLUG_Z = 0.025  # plug body centre height above table top
+PLUG_FRICTION = 4.0  # N: receptacle retention force (est; spring-scale check in real trials)
+PLUG_DAMPING = 5.0
+PLUG_MASS = 0.035
+PLUG_UPPER = 0.035  # 35 mm slider travel along +Y
+BLADE_LEN = 0.018  # 18 mm blade length (est)
+UNPLUGGED_AT = BLADE_LEN  # plug pulled >= 18 mm: blades out of the outlet
+CORD_R = 0.0035  # 7 mm diameter cord
+CORD_X = 0.362  # cord run along y, behind the outlet block and the shredder's rear face (x 0.350)
+CORD_Y_SHRED = 0.110  # where the cord turns into the shredder's rear face
 
 # -- discard tray (fixed, grey, 22 x 16 x 2 cm outer) --------------------------------------------------------------
 TRAY_XY = (0.260, -0.275)
@@ -130,11 +153,15 @@ RUBBER_BLACK = (0.07, 0.07, 0.08)
 CUTTER_STEEL = (0.68, 0.70, 0.73)
 WARN_YELLOW = (0.93, 0.76, 0.10)
 BEZEL_BLACK = (0.09, 0.09, 0.10)
-ROCKER_GREEN = (0.12, 0.78, 0.26)
+ROCKER_FACE = (0.30, 0.31, 0.33)
 MARK_WHITE = (0.96, 0.96, 0.96)
-LOCK_ORANGE = (0.95, 0.42, 0.06)
-LOCK_TRACK = (0.20, 0.21, 0.23)
-LOCK_RED = (0.85, 0.10, 0.10)
+CTRL_KNOB_GREY = (0.78, 0.79, 0.81)
+CTRL_TRACK = (0.20, 0.21, 0.23)
+LED_GREEN = (0.12, 0.78, 0.26)
+REV_AMBER = (0.95, 0.60, 0.10)
+OUTLET_WHITE = (0.93, 0.93, 0.91)
+PLUG_BLACK = (0.09, 0.09, 0.10)
+BRASS_BLADE = (0.80, 0.66, 0.30)
 KRAFT_BROWN = (0.68, 0.52, 0.34)
 LABEL_WHITE = (0.95, 0.94, 0.91)
 TRAY_GREY = (0.52, 0.54, 0.57)

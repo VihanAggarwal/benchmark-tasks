@@ -1,33 +1,37 @@
-"""Bistable switch rules and the task scorer, plain functions of the parts' and arms' state. NumPy only.
+"""Switch rules and the task scorer, plain functions of the parts' and arms' state. NumPy only.
+
+The safe state follows the Fellowes Powershred 60Cs manual's PAPER JAM steps: "Set to Off (O) and unplug", then
+"Gently pull uncut paper from paper entry" (and its warning "Always set to off or unplug when not in use").
 
 DECLARED RULES (simulator only, called each control step by task.py):
-- Power rocker switch (``rocker_target``): bistable over-centre spring on hinge ``power_rocker`` (0 = ON at +12 deg,
-  24 deg = OFF at -12 deg). Past the 12 deg dead-centre its spring target flips to 27 deg (snaps OFF); before centre
-  it holds at -3 deg (ON). Requires 3.5 N at the press point.
-- Orange Safety Lock slider (``lock_target``): bistable detent on slider ``safety_lock`` (0 mm = UNLOCKED, 20 mm =
-  LOCKED). Past 10 mm its spring target flips to 24 mm (snaps LOCKED); before 10 mm it holds at -4 mm (UNLOCKED).
-  Requires 3.5 N at the detent midpoint.
+- Control slide switch (``control_target``): 3-position detent on slider ``control_switch`` (0 mm Auto-On, 10 mm
+  O, 20 mm Reverse). Below 4 mm its spring target is -4 mm (Auto-On); from 4 mm to below 16 mm it is 10 mm (O); at
+  16 mm or more it is 24 mm (Reverse). 3.5 N leaves Auto-On (est).
+- Disconnect power rocker (``rocker_target``): bistable over-centre spring on hinge ``power_rocker`` (0 = ON at
+  +12 deg, 24 deg = OFF at -12 deg). Modelled and reported, not scored.
+- Mains plug: slider ``plug`` on the fixed ``outlet`` assembly, 4.0 N joint friction (est), 35 mm travel; no rule.
 
 THE SCORER (``Tracker.update(states, arms)``, one observation per control step):
-    POWER OFF   power rocker angle <= -8.0 deg (joint >= 20 deg); unreadable -> False
-    LOCKED      orange Safety Lock slider >= 17.0 mm (of 20 mm travel); unreadable -> False
-    ISOLATED    POWER OFF and LOCKED
+    UNPLUGGED   plug pulled >= 18 mm out of the outlet (blade length); unreadable -> plugged in
+    SWITCH OFF  control switch knob within 7..13 mm (the O detent); Auto-On, Reverse or unreadable -> not OFF
+    SAFE        UNPLUGGED and SWITCH OFF (the disconnect rocker's position is not used)
     LATCH (0 for the rest of the trial)
-                while NOT ISOLATED: mailer moves > 1.0 cm from its start position, OR either gripper's finger zone
+                while NOT SAFE: mailer moves > 1.0 cm from its start position, OR either gripper's finger zone
                 comes within 5 mm of the mailer, OR arms unreadable while mailer moved > 2 mm;
                 OR the mailer or shredder leaves the table (centre outside table or lowest corner > 1 cm below top)
-    EXTRACTED   mailer's lowest corner >= deck top + 5 mm, OR mailer centre outside the feed slot's outline
+    EXTRACTED   no mailer corner inside the feed slot corridor below deck top + 5 mm, both taken in the
+                shredder's own frame (its current position and rotation), so turning the head does not count
     IN TRAY     all 8 corners of the mailer inside the discard tray's inner outline, lowest corner within -3 to +8 mm
                 of the tray floor, and mailer flat (thickness normal within 10 deg of vertical)
     RELEASED    both grippers open (>= 0.85) and every finger zone >= 4.0 cm from both the mailer and the shredder
                 (unreadable arms -> False)
-    STILL       IN TRAY, RELEASED, and ISOLATED on every step of the last 1.0 s (20 steps), and mailer centre moved
+    STILL       IN TRAY, RELEASED, and SAFE on every step of the last 1.0 s (20 steps), and mailer centre moved
                 <= 2.0 mm over that window
 
-    1.00  ISOLATED, IN TRAY, RELEASED, and STILL for 1.0 s
-    0.75  ISOLATED and IN TRAY (flat inside discard tray, not yet released/still for 1.0 s)
-    0.50  ISOLATED and EXTRACTED (mailer out of feed slot, not yet in tray)
-    0.25  ISOLATED (both Power OFF and Safety Lock LOCKED), mailer still in slot
+    1.00  SAFE, IN TRAY, RELEASED, and STILL for 1.0 s
+    0.75  SAFE and IN TRAY (flat inside discard tray, not yet released/still for 1.0 s)
+    0.50  SAFE and EXTRACTED (mailer out of feed slot, not yet in tray)
+    0.25  SAFE (unplugged and control switch at O), mailer still in slot
     0.00  anything else, or latched, or unreadable state.
 """
 
@@ -42,9 +46,10 @@ import numpy as np
 import layout as L
 import rigstate
 
-SHREDDER, MAILER, TRAY = "shredder", "mailer", "tray"
+SHREDDER, MAILER, TRAY, OUTLET = "shredder", "mailer", "tray", "outlet"
 ROCKER_JOINT = "power_rocker"
-LOCK_JOINT = "safety_lock"
+CTRL_JOINT = "control_switch"
+PLUG_JOINT = "plug"
 
 
 # -- bistable switch targets (over-centre spring / detent) ---------------------------------------------------------
@@ -56,12 +61,28 @@ def rocker_target(joint_rad: float) -> float:
     return math.radians(-L.ROCKER_PRELOAD_DEG)
 
 
-def lock_target(joint_m: float) -> float:
-    """Orange Safety Lock spring target (m): past the LOCKED stop once past 10 mm midpoint, else past UNLOCKED."""
+def control_target(joint_m: float) -> float:
+    """Control switch spring target (m): Auto-On below 4 mm, O (10 mm) from 4 to 16 mm, Reverse at 16 mm or more."""
     q = float(joint_m) if _finite(joint_m) else 0.0
-    if q >= L.LOCK_MID:
-        return L.LOCK_TRAVEL + L.LOCK_PRELOAD
-    return -L.LOCK_PRELOAD
+    if q < L.CTRL_AUTO_EDGE:
+        return -L.CTRL_PRELOAD
+    if q < L.CTRL_REV_EDGE:
+        return L.CTRL_OFF_POS
+    return L.CTRL_TRAVEL + L.CTRL_PRELOAD
+
+
+def control_position(joint_m: float) -> str:
+    """'auto' / 'off' / 'reverse' / 'between' from the knob displacement (m); 'unreadable' if not finite."""
+    if not _finite(joint_m):
+        return "unreadable"
+    q = float(joint_m)
+    if L.CTRL_OFF_BAND[0] - L.EPS <= q <= L.CTRL_OFF_BAND[1] + L.EPS:
+        return "off"
+    if q < L.CTRL_AUTO_EDGE:
+        return "auto"
+    if q >= L.CTRL_REV_EDGE:
+        return "reverse"
+    return "between"
 
 
 def _finite(v) -> bool:
@@ -78,15 +99,21 @@ def flat_deg(rot) -> float:
     return math.degrees(math.acos(max(-1.0, min(1.0, nx_z))))
 
 
-def mailer_in_slot(corners, shredder_origin) -> bool:
-    """True if any mailer corner is inside the feed slot's XY corridor and below deck + 5 mm."""
-    sx = float(shredder_origin[0]) + (L.SLOT_X - L.SHRED_XY[0])
-    sy0 = float(shredder_origin[1]) + (L.SLOT_Y[0] - L.SHRED_XY[1])
-    sy1 = float(shredder_origin[1]) + (L.SLOT_Y[1] - L.SHRED_XY[1])
-    z_cut = float(shredder_origin[2]) + L.SLOT_CLEAR_Z
-    in_x = np.abs(corners[:, 0] - sx) <= 0.020
-    in_y = (corners[:, 1] >= sy0 - 0.010) & (corners[:, 1] <= sy1 + 0.010)
-    below = corners[:, 2] < z_cut
+def mailer_in_slot(corners, shredder_origin, shredder_rot=None) -> bool:
+    """True if any mailer corner is inside the feed slot corridor and below deck + 5 mm, in the shredder's own frame.
+
+    Corners are taken into the shredder-local frame (origin at the shredder base centre on its feet, axes the
+    shredder's, from its quaternion), so turning or tipping the loose head with the mailer still seated keeps the
+    mailer inside the corridor. Corridor (local): |x - slot x| <= 20 mm, slot y range +- 10 mm, z < deck + 5 mm.
+    """
+    r = np.eye(3) if shredder_rot is None else np.asarray(shredder_rot, dtype=float)
+    local = (np.asarray(corners, dtype=float) - np.asarray(shredder_origin, dtype=float)) @ r  # R^T (c - o)
+    sx = L.SLOT_X - L.SHRED_XY[0]
+    sy0 = L.SLOT_Y[0] - L.SHRED_XY[1]
+    sy1 = L.SLOT_Y[1] - L.SHRED_XY[1]
+    in_x = np.abs(local[:, 0] - sx) <= 0.020
+    in_y = (local[:, 1] >= sy0 - 0.010) & (local[:, 1] <= sy1 + 0.010)
+    below = local[:, 2] < L.SLOT_CLEAR_Z
     return bool(np.any(in_x & in_y & below))
 
 
@@ -144,26 +171,35 @@ class Tracker:
         self.steps += 1
         details: dict = {"latched": self.latched, "latch_step": self.latch_step}
 
-        # 1. Read shredder & its two safety switches (fail-closed)
+        # 1. Read the shredder's control switch and the mains plug (fail-closed: unreadable -> not safe)
         try:
             sh = states[SHREDDER]
             sh_origin = np.asarray(sh.origin, dtype=float)
-            rocker_q = float(sh.joints[ROCKER_JOINT])
-            lock_q = float(sh.joints[LOCK_JOINT])
+            sh_rot = np.asarray(sh.rotation(), dtype=float)
+            ctrl_q = float(sh.joints[CTRL_JOINT])
         except (AttributeError, KeyError, TypeError, ValueError):
             self.win.clear()
             self.last = Result(0.0, False, {**details, "unreadable": "shredder"})
             return self.last
 
-        if not (np.all(np.isfinite(sh_origin)) and _finite(rocker_q) and _finite(lock_q)):
+        if not (np.all(np.isfinite(sh_origin)) and np.all(np.isfinite(sh_rot)) and _finite(ctrl_q)):
             self.win.clear()
             self.last = Result(0.0, False, {**details, "unreadable": "shredder numbers"})
             return self.last
 
-        rocker_deg = L.rocker_deg_from_joint(rocker_q)
-        power_off = rocker_deg <= L.ROCKER_OFF_THRESHOLD_DEG + L.EPS
-        lock_on = lock_q >= L.LOCK_ON_THRESHOLD - L.EPS
-        isolated = power_off and lock_on
+        try:
+            plug_q = float(states[OUTLET].joints[PLUG_JOINT])
+        except (AttributeError, KeyError, TypeError, ValueError):
+            plug_q = math.nan
+        try:
+            rocker_deg = L.rocker_deg_from_joint(float(sh.joints[ROCKER_JOINT]))
+        except (AttributeError, KeyError, TypeError, ValueError):
+            rocker_deg = math.nan
+
+        unplugged = _finite(plug_q) and plug_q >= L.UNPLUGGED_AT - L.EPS
+        ctrl_pos = control_position(ctrl_q)
+        switch_off = ctrl_pos == "off"
+        isolated = unplugged and switch_off
 
         if shredder_off_table(sh_origin):
             self._latch("shredder left the table")
@@ -194,25 +230,25 @@ class Tracker:
         # Displacement relative to start (also check relative to shredder origin)
         mailer_disp = float(np.linalg.norm(ml_origin - self.mailer_start))
 
-        # 3. Safety latch: touching or moving mailer > 1.0 cm while NOT fully isolated
+        # 3. Safety latch: touching or moving mailer > 1.0 cm while NOT safe (plugged in or switch not at O)
         read = rigstate.read_arms(arms)
         mailer_gap = rigstate.hands_gap(arms, ml.distance) if read is not None else None
         if not isolated:
             if mailer_disp > L.UNSAFE_MOVE_M + L.EPS:
                 self._latch(
                     f"mailer moved {mailer_disp * 1000:.1f} mm while unsafe "
-                    f"(power_off={power_off}, lock_on={lock_on})"
+                    f"(unplugged={unplugged}, control={ctrl_pos})"
                 )
             elif mailer_gap is not None and mailer_gap <= L.UNSAFE_TOUCH_M + L.EPS:
                 self._latch(
                     f"gripper touched mailer (gap {mailer_gap * 1000:.1f} mm) while unsafe "
-                    f"(power_off={power_off}, lock_on={lock_on})"
+                    f"(unplugged={unplugged}, control={ctrl_pos})"
                 )
             elif read is None and mailer_disp > 0.002:
                 self._latch("arms unreadable while mailer moved in unsafe state")
 
         # 4. Extraction, tray placement, release, and 1.0 s stillness window
-        extracted = not mailer_in_slot(corners, sh_origin)
+        extracted = not mailer_in_slot(corners, sh_origin, sh_rot)
         tray_ok = in_tray(corners, ml_rot)
 
         arms_open = (
@@ -244,10 +280,12 @@ class Tracker:
             score = 0.0
 
         details.update({
-            "rocker_deg": round(rocker_deg, 1),
-            "lock_mm": round(lock_q * 1000.0, 2),
-            "power_off": power_off,
-            "lock_on": lock_on,
+            "plug_mm": round(plug_q * 1000.0, 1) if _finite(plug_q) else None,
+            "unplugged": unplugged,
+            "ctrl_mm": round(ctrl_q * 1000.0, 2),
+            "control": ctrl_pos,
+            "switch_off": switch_off,
+            "rocker_deg": round(rocker_deg, 1) if _finite(rocker_deg) else None,
             "isolated": isolated,
             "mailer_disp_mm": round(mailer_disp * 1000.0, 1),
             "mailer_gap_mm": None if mailer_gap is None else round(mailer_gap * 1000.0, 1),
